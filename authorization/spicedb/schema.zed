@@ -1,6 +1,11 @@
 /**
  * 階層型認可システムのスキーマ定義
- * Admin > Owner > Manager > Staff の階層構造
+ * 新しい条件に基づく認可設定：
+ * - Admin: フルアクセス
+ * - ユーザは複数のシステムに所属可能
+ * - システム権限: オーナー（全権）、マネージャー（修正、メンバー操作不可）、スタッフ（閲覧のみ）
+ * - AWS権限: システム権限とは完全に独立、個別に設定される
+ * - AWSは単一システムに所属、オーナー・マネージャー・スタッフが存在、マネージャーはスタッフと同じ権限
  */
 
 // ユーザー定義
@@ -8,31 +13,32 @@ definition user {}
 
 // システムリソース定義
 definition system {
-    // システムに対する権限
+    // システムに対する権限（ユーザは複数のシステムに所属可能）
     relation owner: user
     relation manager: user
     relation staff: user
     
-    // 権限の継承関係
-    permission read: staff + manager + owner
-    permission write: manager + owner  
-    permission delete: owner
-    permission admin: owner
-}
-
-// AWSアカウントリソース定義
-definition aws_account {
-    // AWSアカウントに対する権限
-    relation owner: user
-    relation manager: user
-    relation staff: user
-    
-    // システムとの関係
-    relation system: system
-    
-    // 権限の継承関係
+    // 権限の定義
     permission read: staff + manager + owner
     permission write: manager + owner
+    permission delete: manager + owner
+    permission admin: owner
+    permission manage_members: owner  // メンバー管理はオーナーのみ
+}
+
+// AWSアカウントリソース定義（システム権限とは独立）
+definition aws {
+    // AWSに対する権限（システム権限とは完全に独立して設定）
+    relation owner: user
+    relation manager: user
+    relation staff: user
+    
+    // システムとの関係（所属関係のみ、権限には影響しない）
+    relation system: system
+    
+    // 権限の定義（マネージャーはスタッフと同じ権限、システム権限とは独立）
+    permission read: staff + manager + owner
+    permission write: owner
     permission delete: owner
     permission admin: owner
 }
@@ -68,9 +74,9 @@ definition api {
 
 // グローバル権限定義
 definition global {
-    // グローバル管理者
+    // グローバル管理者（Admin）
     relation admin: user
     
     // 全ての権限を持つ
-    permission manage_all: admin
+    permission full_access: admin
 } 

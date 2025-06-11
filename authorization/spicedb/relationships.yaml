@@ -1,13 +1,14 @@
 # SpiceDB リレーションシップ定義
-# Casbinの設定と同等の権限設定
+# 新しい認可条件に基づく設定
 
 relationships:
-  # グローバル管理者設定（全権限）
+  # グローバル管理者設定（Admin - フルアクセス）
   - resource: "global:main"
     relation: "admin"
     subject: "user:taro"
 
-  # システムリソースの権限設定
+  # システムリソースの権限設定（ユーザは複数のシステムに所属可能）
+  # jiro - system1とsystem2のオーナー
   - resource: "system:system1"
     relation: "owner"
     subject: "user:jiro"
@@ -16,57 +17,42 @@ relationships:
     relation: "owner"
     subject: "user:jiro"
 
-  - resource: "system:system3"
+  # saburo - system1とsystem3のマネージャー
+  - resource: "system:system1"
     relation: "manager"
     subject: "user:saburo"
 
   - resource: "system:system3"
-    relation: "staff"
-    subject: "user:hanako"
-
-  # AWSアカウントの権限設定
-  - resource: "aws_account:aws_account_1"
-    relation: "owner"
-    subject: "user:jiro"
-
-  - resource: "aws_account:aws_account_2"
-    relation: "owner"
-    subject: "user:jiro"
-
-  - resource: "aws_account:aws_account_3"
     relation: "manager"
     subject: "user:saburo"
 
-  - resource: "aws_account:aws_account_3"
+  # hanako - system2とsystem3のスタッフ
+  - resource: "system:system2"
     relation: "staff"
     subject: "user:hanako"
 
-  # ユーザー管理の権限設定
-  - resource: "user_management:main"
-    relation: "admin_user"
-    subject: "user:taro"
-
-  - resource: "user_management:main"
-    relation: "manager"
-    subject: "user:saburo"
-
-  - resource: "user_management:main"
+  - resource: "system:system3"
     relation: "staff"
     subject: "user:hanako"
 
-  # API権限設定
-  - resource: "api:main"
-    relation: "admin_user"
-    subject: "user:taro"
-
-  - resource: "api:main"
+  # AWSの権限設定（システム権限とは完全に独立）
+  # システムでのロールに関係なく、AWS権限は個別に付与される
+  # jiro - aws1のオーナー
+  - resource: "aws:aws1"
     relation: "owner"
     subject: "user:jiro"
 
-  - resource: "api:main"
+  # saburo - aws1のマネージャー（システムでの権限とは無関係）
+  - resource: "aws:aws1"
     relation: "manager"
     subject: "user:saburo"
 
-  - resource: "api:main"
+  # hanako - aws1のスタッフ（システムでの権限とは無関係）
+  - resource: "aws:aws1"
     relation: "staff"
     subject: "user:hanako"
+
+  # AWSとシステムの関係設定（所属関係のみ、権限には影響しない）
+  - resource: "aws:aws1"
+    relation: "system"
+    subject: "system:system1"
