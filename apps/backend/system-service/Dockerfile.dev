@@ -1,0 +1,23 @@
+# Dockerfile.dev
+FROM golang:1.23-alpine
+
+# 必要なパッケージをインストール
+RUN apk add --no-cache curl git
+
+# Airをダウンロードしてインストール
+RUN go install github.com/air-verse/air@v1.61.7
+
+# ワーキングディレクトリを設定
+WORKDIR /app
+
+# go.mod と go.sum をコピーして依存関係をインストール
+COPY apps/backend/system-service/go.mod apps/backend/system-service/go.sum ./
+RUN go mod download
+
+# ソースコードと設定ファイルをコピー
+COPY apps/backend/system-service/ ./
+
+ENV GO_ENV development
+
+# ホットリロードで開発用サーバを起動
+CMD ["air", "-c", ".air.toml"]

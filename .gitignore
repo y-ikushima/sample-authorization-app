@@ -1,0 +1,54 @@
+
+# Golang build artifacts
+/bin/
+/pkg/
+/dist/
+/vendor/
+/*.exe
+/*.exe~
+/*.dll
+/*.so
+/*.dylib
+/*.test
+/*.out
+main
+
+# Ignore Go dependency management files
+go.work.sum
+go.work
+Gopkg.lock
+Gopkg.toml
+
+# Binary files
+*.o
+*.a
+*.log
+
+# Temporary directories
+tmp/
+/tmp/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.pgdata
+dump.sql
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# IDE or Editor files (optional, depending on your environment)
+.idea/
+.vscode/
+*.swp
+*~
+
+# macOS specific
+.DS_Store
+
+# Git specific
+.git/
+postgres/*

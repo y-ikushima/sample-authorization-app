@@ -1,0 +1,118 @@
+version: "3"
+
+networks:
+  authorization-network:
+    driver: bridge
+
+services:
+  system_postgres:
+    networks:
+      - authorization-network
+    container_name: system_postgres
+    image: postgres:16.1
+    restart: always
+    env_file:
+      - .env.local
+    volumes:
+      - ./postgres/system:/var/lib/postgresql/data
+      - ./query/system/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - 5433:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  aws_postgres:
+    networks:
+      - authorization-network
+    container_name: aws_postgres
+    image: postgres:16.1
+    restart: always
+    env_file:
+      - .env.local
+    volumes:
+      - ./postgres/aws:/var/lib/postgresql/data
+      - ./query/aws/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - 5434:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  user_postgres:
+    networks:
+      - authorization-network
+    container_name: user_postgres
+    image: postgres:16.1
+    restart: always
+    env_file:
+      - .env.local
+    volumes:
+      - ./postgres/user:/var/lib/postgresql/data
+      - ./query/user/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - 5435:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  aws-service:
+    networks:
+      - authorization-network
+    container_name: aws-service
+    build:
+      context: .
+      dockerfile: ./apps/backend/aws-service/Dockerfile.dev
+    env_file:
+      - .env.local
+    ports:
+      - 3003:3003
+    volumes:
+      - ./apps/backend/aws-service:/app
+    depends_on:
+      aws_postgres:
+        condition: service_healthy
+
+  system-service:
+    networks:
+      - authorization-network
+    container_name: system-service
+    build:
+      context: .
+      dockerfile: ./apps/backend/system-service/Dockerfile.dev
+    env_file:
+      - .env.local
+    ports:
+      - 3004:3003
+    volumes:
+      - ./apps/backend/system-service:/app
+    depends_on:
+      system_postgres:
+        condition: service_healthy
+
+  user-service:
+    networks:
+      - authorization-network
+    container_name: user-service
+    build:
+      context: .
+      dockerfile: ./apps/backend/user-service/Dockerfile.dev
+    env_file:
+      - .env.local
+    ports:
+      - 3005:3003
+    volumes:
+      - ./apps/backend/user-service:/app
+    depends_on:
+      user_postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  air_config: # air_config ボリュームを定義
