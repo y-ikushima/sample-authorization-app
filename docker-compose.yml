@@ -113,6 +113,40 @@ services:
       user_postgres:
         condition: service_healthy
 
+  aws-web:
+    networks:
+      - authorization-network
+    container_name: aws-web
+    build:
+      context: ./apps/frontend/aws-web
+      dockerfile: Dockerfile.dev
+    ports:
+      - 3000:3000
+    volumes:
+      - ./apps/frontend/aws-web:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - aws-service
+
+  system-web:
+    networks:
+      - authorization-network
+    container_name: system-web
+    build:
+      context: ./apps/frontend/system-web
+      dockerfile: Dockerfile.dev
+    ports:
+      - 3001:3000
+    volumes:
+      - ./apps/frontend/system-web:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - system-service
+
 volumes:
   postgres_data:
   air_config: # air_config ボリュームを定義
