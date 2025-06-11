@@ -18,7 +18,55 @@
 ### 前提条件
 
 このシステム上では認可のみの検証を行います  
-認証はこのネットワークに入っている状態で認証済みとします
+このネットワークに入っている状態で認証済みとします
+
+### 構成図
+
+```mermaid
+flowchart TB
+    subgraph Network["認証済みネットワーク"]
+
+        subgraph Frontend["フロントエンド"]
+            AWS_WEB["AWS Web<br/>(localhost:3000)<br/> AWS アカウント管理 UI"]
+            SYSTEM_WEB["System Web<br/>(localhost:3001)<br/>システム管理 UI"]
+        end
+
+        subgraph Backend["バックエンドサービス"]
+            AWS_SERVICE["AWS Service<br/>(localhost:3003)<br/>AWS アカウント管理 API"]
+            SYSTEM_SERVICE["System Service<br/>(localhost:3004)<br/>システム管理 API"]
+        end
+
+        subgraph UserMgmt["ユーザー管理"]
+            USER_SERVICE["User Service<br/>(localhost:3005)<br/>ユーザー管理 API"]
+        end
+
+        subgraph AuthSys["認可システム"]
+            AUTH_SERVER["認可サーバ<br/>(localhost:8080)<br/>Casbin/OPA/SpiceDB 切り替え可能"]
+        end
+
+        subgraph Database["データベース"]
+            SYSTEM_DB["System DB<br/>(localhost:5433)"]
+            AWS_DB["AWS DB<br/>(localhost:5434)"]
+            USER_DB["User DB<br/>(localhost:5435)"]
+            SPICEDB_DB["SpiceDB<br/>(localhost:5436)"]
+        end
+    end
+
+    AWS_WEB --> AWS_SERVICE
+    AWS_WEB --> USER_SERVICE
+    SYSTEM_WEB --> SYSTEM_SERVICE
+    SYSTEM_WEB --> USER_SERVICE
+
+    AWS_SERVICE --> USER_SERVICE
+    SYSTEM_SERVICE --> USER_SERVICE
+
+    USER_SERVICE --> AUTH_SERVER
+
+    AWS_SERVICE --> AWS_DB
+    SYSTEM_SERVICE --> SYSTEM_DB
+    USER_SERVICE --> USER_DB
+    AUTH_SERVER --> SPICEDB_DB
+```
 
 ### フロントエンド
 
