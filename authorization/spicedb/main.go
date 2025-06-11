@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -87,7 +86,7 @@ func loadRelationships() error {
 		configPath = "/app/relationships.yaml" // Docker環境用
 	}
 
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to read config file: %v", err)
 	}
@@ -126,17 +125,12 @@ func authorizeHandler(w http.ResponseWriter, r *http.Request) {
 
 func checkPermission(subject, resource, permission string) bool {
 	// subjectが "user:" プレフィックス付きの場合は除去
-	if strings.HasPrefix(subject, "user:") {
-		subject = strings.TrimPrefix(subject, "user:")
-	}
+	subject = strings.TrimPrefix(subject, "user:")
 
 	// 該当するリレーションシップを検索
 	for _, rel := range relationships {
 		// subjectのマッチング
-		relSubject := rel.Subject
-		if strings.HasPrefix(relSubject, "user:") {
-			relSubject = strings.TrimPrefix(relSubject, "user:")
-		}
+		relSubject := strings.TrimPrefix(rel.Subject, "user:")
 		
 		if relSubject == subject && rel.Resource == resource {
 			// relationに基づいて権限チェック
@@ -178,11 +172,7 @@ func addRelationshipHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 新しいリレーションシップをメモリに追加
-	newRel := Relationship{
-		Resource: relReq.Resource,
-		Relation: relReq.Relation,
-		Subject:  relReq.Subject,
-	}
+	newRel := Relationship(relReq)
 	relationships = append(relationships, newRel)
 
 	w.Header().Set("Content-Type", "application/json")
