@@ -92,18 +92,11 @@ flowchart TB
 ### ロール階層
 
 ```
-Admin (taro)
-  └── Owner (jiro)
-       └── Manager (saburo)
-            └── Staff (hanako)
+Admin
+  └── Owner
+       └── Manager
+            └── Staff
 ```
-
-### リソース種別
-
-- **Global**: 全体管理
-- **System**: システム管理
-- **AWS Account**: AWS アカウント管理
-- **User**: ユーザー管理
 
 ## 環境構築
 
