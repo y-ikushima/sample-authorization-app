@@ -1,0 +1,76 @@
+/**
+ * 階層型認可システムのスキーマ定義
+ * Admin > Owner > Manager > Staff の階層構造
+ */
+
+// ユーザー定義
+definition user {}
+
+// システムリソース定義
+definition system {
+    // システムに対する権限
+    relation owner: user
+    relation manager: user
+    relation staff: user
+    
+    // 権限の継承関係
+    permission read: staff + manager + owner
+    permission write: manager + owner  
+    permission delete: owner
+    permission admin: owner
+}
+
+// AWSアカウントリソース定義
+definition aws_account {
+    // AWSアカウントに対する権限
+    relation owner: user
+    relation manager: user
+    relation staff: user
+    
+    // システムとの関係
+    relation system: system
+    
+    // 権限の継承関係
+    permission read: staff + manager + owner
+    permission write: manager + owner
+    permission delete: owner
+    permission admin: owner
+}
+
+// ユーザー管理リソース定義
+definition user_management {
+    // ユーザー管理に対する権限
+    relation admin_user: user
+    relation manager: user
+    relation staff: user
+    
+    // 権限定義（ユーザー操作はadminのみ、その他は閲覧のみ）
+    permission read: staff + manager + admin_user
+    permission write: admin_user
+    permission delete: admin_user
+    permission admin: admin_user
+}
+
+// APIエンドポイント定義
+definition api {
+    // API に対する権限
+    relation admin_user: user
+    relation owner: user
+    relation manager: user
+    relation staff: user
+    
+    // 権限の継承関係
+    permission read: staff + manager + owner + admin_user
+    permission write: manager + owner + admin_user
+    permission delete: owner + admin_user
+    permission admin: admin_user
+}
+
+// グローバル権限定義
+definition global {
+    // グローバル管理者
+    relation admin: user
+    
+    // 全ての権限を持つ
+    permission manage_all: admin
+} 

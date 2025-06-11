@@ -1,0 +1,74 @@
+# OPA Authorization Server Configuration
+
+users:
+  taro:
+    role: admin
+    name: "TARO(Admin)"
+    email: "taro@example.com"
+  jiro:
+    role: owner
+    name: "Jiro(Owner)"
+    email: "jiro@example.com"
+  saburo:
+    role: manager
+    name: "Saburo(Manager)"
+    email: "saburo@example.com"
+  hanako:
+    role: staff
+    name: "Hanako(Staff)"
+    email: "hanako@example.com"
+
+resources:
+  systems:
+    - id: "system:system1"
+      name: "System 1"
+      owner: "jiro"
+    - id: "system:system2"
+      name: "System 2"
+      owner: "jiro"
+    - id: "system:system3"
+      name: "System 3"
+      manager: "saburo"
+      staff: ["hanako"]
+
+  aws_accounts:
+    - id: "aws_account:aws_account_1"
+      name: "AWS Account 1"
+      owner: "jiro"
+    - id: "aws_account:aws_account_2"
+      name: "AWS Account 2"
+      owner: "jiro"
+    - id: "aws_account:aws_account_3"
+      name: "AWS Account 3"
+      manager: "saburo"
+      staff: ["hanako"]
+
+  global_resources:
+    - id: "global:main"
+      name: "Global Resources"
+      admin: "taro"
+    - id: "user_management:main"
+      name: "User Management"
+      admin: "taro"
+      viewers: ["saburo", "hanako"]
+    - id: "api:main"
+      name: "API Access"
+      users: ["taro", "jiro", "saburo", "hanako"]
+
+role_permissions:
+  admin:
+    - read
+    - write
+    - delete
+    - admin
+  owner:
+    - read
+    - write
+    - delete
+    - admin
+  manager:
+    - read
+    - write
+    - delete
+  staff:
+    - read

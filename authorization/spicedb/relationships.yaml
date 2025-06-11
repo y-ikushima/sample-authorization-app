@@ -1,0 +1,72 @@
+# SpiceDB リレーションシップ定義
+# Casbinの設定と同等の権限設定
+
+relationships:
+  # グローバル管理者設定（全権限）
+  - resource: "global:main"
+    relation: "admin"
+    subject: "user:taro"
+
+  # システムリソースの権限設定
+  - resource: "system:system1"
+    relation: "owner"
+    subject: "user:jiro"
+
+  - resource: "system:system2"
+    relation: "owner"
+    subject: "user:jiro"
+
+  - resource: "system:system3"
+    relation: "manager"
+    subject: "user:saburo"
+
+  - resource: "system:system3"
+    relation: "staff"
+    subject: "user:hanako"
+
+  # AWSアカウントの権限設定
+  - resource: "aws_account:aws_account_1"
+    relation: "owner"
+    subject: "user:jiro"
+
+  - resource: "aws_account:aws_account_2"
+    relation: "owner"
+    subject: "user:jiro"
+
+  - resource: "aws_account:aws_account_3"
+    relation: "manager"
+    subject: "user:saburo"
+
+  - resource: "aws_account:aws_account_3"
+    relation: "staff"
+    subject: "user:hanako"
+
+  # ユーザー管理の権限設定
+  - resource: "user_management:main"
+    relation: "admin_user"
+    subject: "user:taro"
+
+  - resource: "user_management:main"
+    relation: "manager"
+    subject: "user:saburo"
+
+  - resource: "user_management:main"
+    relation: "staff"
+    subject: "user:hanako"
+
+  # API権限設定
+  - resource: "api:main"
+    relation: "admin_user"
+    subject: "user:taro"
+
+  - resource: "api:main"
+    relation: "owner"
+    subject: "user:jiro"
+
+  - resource: "api:main"
+    relation: "manager"
+    subject: "user:saburo"
+
+  - resource: "api:main"
+    relation: "staff"
+    subject: "user:hanako"

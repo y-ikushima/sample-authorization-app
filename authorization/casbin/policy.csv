@@ -1,0 +1,28 @@
+# Admin権限 - 全操作が可能
+p, admin, /api/**, *
+p, admin, /aws/**, *
+p, admin, /system/**, *
+p, admin, /user/**, *
+
+# Owner権限 - 自分の管理するシステム配下なら全操作可能（AWSアカウント操作も含む）
+p, owner, /system/*/**, *
+p, owner, /aws/*/**, *
+p, owner, /aws/account/**, (GET|PUT|POST|DELETE)
+
+# Manager権限 - システムとAWSアカウントの編集は可能だがユーザ操作は不可
+p, manager, /system/**, (GET|PUT|POST|DELETE)
+p, manager, /aws/account/**, (GET|PUT|POST|DELETE)
+p, manager, /aws/*/system/**, (GET|PUT|POST|DELETE)
+p, manager, /user/**, GET
+
+# Staff権限 - 閲覧のみ
+p, staff, /system/**, GET
+p, staff, /aws/account/**, GET
+p, staff, /aws/**, GET
+p, staff, /user/**, GET
+
+# ユーザーのロール割り当て
+g, taro, admin
+g, jiro, owner
+g, saburo, manager
+g, hanako, staff 
