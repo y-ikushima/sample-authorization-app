@@ -9,7 +9,7 @@
 
 | 認可システム | ポート | 特徴                 |
 | ------------ | ------ | -------------------- |
-| **Casbin**   | 8080   | シンプルな RBAC      |
+| **Casbin**   | 8080   | RBAC                 |
 | **OPA**      | 8081   | ポリシー言語(Rego)   |
 | **SpiceDB**  | 8082   | Google Zanzibar 方式 |
 
@@ -234,3 +234,173 @@ docker compose down
 - [Casbin Documentation](https://casbin.org/)
 - [OPA Documentation](https://www.openpolicyagent.org/)
 - [SpiceDB Documentation](https://authzed.com/docs/)
+
+## テーブル情報
+
+### User Service（ユーザーサービス）
+
+#### `user_info` テーブル
+
+```sql
+CREATE TABLE user_info (
+    id VARCHAR(100) PRIMARY KEY,        -- ユーザーID
+    name VARCHAR(100) NOT NULL,         -- ユーザー名
+    email VARCHAR(100) UNIQUE NOT NULL  -- メールアドレス（ユニーク）
+);
+```
+
+**初期データ：**
+
+- `taro` - TARO(Admin)（管理者）
+- `jiro` - Jiro(Owner)（システムオーナー）
+- `saburo` - Saburo(Manager)（システムマネージャー）
+- `hanako` - Hanako(Staff)（システムスタッフ）
+- `alice` - Alice(AWS Only)（AWS 権限のみ）
+- `bob` - Bob(No Permission)（権限なし）
+
+### System Service（システムサービス）
+
+#### `system` テーブル
+
+```sql
+CREATE TABLE system (
+    id VARCHAR(100) PRIMARY KEY,      -- システムID
+    name VARCHAR(100) NOT NULL,       -- システム名
+    note VARCHAR(100) UNIQUE NOT NULL -- システムノート（ユニーク）
+);
+```
+
+#### `system_user_relation` テーブル
+
+```sql
+CREATE TABLE system_user_relation (
+    id VARCHAR(100) PRIMARY KEY,      -- リレーションID
+    system_id VARCHAR(100) NOT NULL,  -- システムID
+    user_id VARCHAR(100) NOT NULL,    -- ユーザーID
+    role VARCHAR(50) NOT NULL         -- ロール（owner/manager/staff）
+);
+```
+
+**初期データ：**
+
+- `system1` (Development System), `system2` (Staging System), `system3` (Production System), `system4` (Testing System)
+
+**権限マッピング：**
+
+- `jiro`: system1 と system2 の**オーナー**
+- `saburo`: system1 と system3 の**マネージャー**
+- `hanako`: system2 と system3 の**スタッフ**
+- `alice`: system4 の**スタッフ**
+
+### AWS Service（AWS サービス）
+
+#### `aws_account` テーブル
+
+```sql
+CREATE TABLE aws_account (
+    id VARCHAR(100) PRIMARY KEY,      -- AWSアカウントID
+    name VARCHAR(100) NOT NULL,       -- AWSアカウント名
+    note VARCHAR(100) UNIQUE NOT NULL -- AWSアカウントノート（ユニーク）
+);
+```
+
+#### `aws_account_system_relation` テーブル
+
+```sql
+CREATE TABLE aws_account_system_relation (
+    id VARCHAR(100) PRIMARY KEY,       -- リレーションID
+    aws_account_id VARCHAR(100) NOT NULL, -- AWSアカウントID
+    system_id VARCHAR(100) NOT NULL    -- システムID
+);
+```
+
+#### `aws_account_user_relation` テーブル
+
+```sql
+CREATE TABLE aws_account_user_relation (
+    id VARCHAR(100) PRIMARY KEY,       -- リレーションID
+    aws_account_id VARCHAR(100) NOT NULL, -- AWSアカウントID
+    user_id VARCHAR(100) NOT NULL,     -- ユーザーID
+    role VARCHAR(50) NOT NULL          -- ロール（owner/manager/staff）
+);
+```
+
+**初期データ：**
+
+- `aws1` (Development AWS) → system1 に所属
+- `aws2` (Production AWS) → system2 に所属
+
+**AWS 権限マッピング（システム権限とは独立）：**
+
+- `aws1`: jiro（オーナー）、saburo（マネージャー）、hanako（スタッフ）
+- `aws2`: alice（オーナー）
+
+### データベース関係図
+
+```mermaid
+erDiagram
+    user_info {
+        VARCHAR id PK
+        VARCHAR name
+        VARCHAR email UK
+    }
+
+    system {
+        VARCHAR id PK
+        VARCHAR name
+        VARCHAR note UK
+    }
+
+    system_user_relation {
+        VARCHAR id PK
+        VARCHAR system_id FK
+        VARCHAR user_id FK
+        VARCHAR role
+    }
+
+    aws_account {
+        VARCHAR id PK
+        VARCHAR name
+        VARCHAR note UK
+    }
+
+    aws_account_system_relation {
+        VARCHAR id PK
+        VARCHAR aws_account_id FK
+        VARCHAR system_id FK
+    }
+
+    aws_account_user_relation {
+        VARCHAR id PK
+        VARCHAR aws_account_id FK
+        VARCHAR user_id FK
+        VARCHAR role
+    }
+
+    user_info ||--o{ system_user_relation : "has"
+    system ||--o{ system_user_relation : "belongs to"
+    user_info ||--o{ aws_account_user_relation : "has"
+    aws_account ||--o{ aws_account_user_relation : "belongs to"
+    aws_account ||--|| aws_account_system_relation : "belongs to"
+    system ||--o{ aws_account_system_relation : "has"
+```
+
+### 権限体系の特徴
+
+1. **システム権限と AWS 権限は完全に独立**
+
+   - システムでのロールに関係なく、AWS 権限は個別に付与
+   - 例：`saburo`は system1 のマネージャーだが、aws1 ではマネージャー権限
+
+2. **複数所属が可能**
+
+   - ユーザーは複数のシステムに異なるロールで所属可能
+   - 例：`jiro`は system1 と system2 のオーナー
+
+3. **階層ロール**
+
+   - Admin > Owner > Manager > Staff の階層構造
+
+4. **AWS-システム関係**
+   - 各 AWS アカウントは単一のシステムに所属
+   - システム権限と AWS 権限は独立して管理
