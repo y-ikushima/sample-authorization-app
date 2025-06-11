@@ -38,89 +38,95 @@ user_global_roles := {
     "taro": "admin"
 }
 
-# システム権限チェック
-allow if {
-    # Admin はフルアクセス
+# Admin はフルアクセス
+allow {
     user_global_roles[input.subject] == "admin"
 }
 
-allow if {
-    # システムリソースの場合
+# システムリソースの場合
+allow {
     startswith(input.resource, "system:")
-    
-    # リソースからシステムIDを抽出
     system_id := split(input.resource, ":")[1]
-    
-    # ユーザーがそのシステムに権限を持っているかチェック
     user_role := user_system_roles[input.subject][system_id]
-    
-    # 権限チェック
     permission_check(user_role, input.permission)
 }
 
-allow if {
-    # AWSリソースの場合（システム権限とは独立して判定）
+# AWSリソースの場合（システム権限とは独立して判定）
+allow {
     startswith(input.resource, "aws:")
-    
-    # リソースからAWS IDを抽出
     aws_id := split(input.resource, ":")[1]
-    
-    # ユーザーがそのAWSに権限を持っているかチェック（システム権限とは無関係）
     user_role := user_aws_roles[input.subject][aws_id]
-    
-    # AWS権限チェック（システム権限とは独立）
     aws_permission_check(user_role, input.permission)
 }
 
 # システム権限チェック関数
-permission_check(role, permission) if {
+permission_check(role, permission) {
     role == "owner"
-    # オーナーは全権限
 }
 
-permission_check(role, permission) if {
+permission_check(role, permission) {
     role == "manager"
-    # マネージャーはシステムの修正可能、メンバー操作不可
-    permission in ["read", "write", "delete"]
+    permission == "read"
 }
 
-permission_check(role, permission) if {
+permission_check(role, permission) {
+    role == "manager"
+    permission == "write"
+}
+
+permission_check(role, permission) {
+    role == "manager"
+    permission == "delete"
+}
+
+permission_check(role, permission) {
     role == "staff"
-    # スタッフは閲覧のみ
     permission == "read"
 }
 
 # AWS権限チェック関数（システム権限とは独立）
-aws_permission_check(role, permission) if {
+aws_permission_check(role, permission) {
     role == "owner"
-    # AWSオーナーは全権限
 }
 
-aws_permission_check(role, permission) if {
+aws_permission_check(role, permission) {
     role == "manager"
-    # AWSマネージャーはスタッフと同じ権限（閲覧のみ）
     permission == "read"
 }
 
-aws_permission_check(role, permission) if {
+aws_permission_check(role, permission) {
     role == "staff"
-    # AWSスタッフは閲覧のみ
     permission == "read"
 }
 
 # 詳細な理由を提供するためのルール
-reason := "Access denied: User not found" if {
+reason := "Access denied: User not found" {
     not user_global_roles[input.subject]
     not user_system_roles[input.subject]
     not user_aws_roles[input.subject]
 }
 
-reason := sprintf("Access denied: User %s does not have %s permission on %s", [input.subject, input.permission, input.resource]) if {
-    (user_global_roles[input.subject] or user_system_roles[input.subject] or user_aws_roles[input.subject])
+reason := sprintf("Access denied: User %s does not have %s permission on %s", [input.subject, input.permission, input.resource]) {
+    user_exists
     not allow
 }
 
-reason := "Access granted" if allow
+reason := "Access granted" {
+    allow
+}
+
+# ユーザーが存在するかチェック
+user_exists {
+    user_global_roles[input.subject]
+}
+
+user_exists {
+    user_system_roles[input.subject]
+}
+
+user_exists {
+    user_aws_roles[input.subject]
+}
 
 # デバッグ用: ユーザー情報を取得
 user_info := {

@@ -1,45 +1,22 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine
 
-WORKDIR /build
+# 必要なパッケージをインストール
+RUN apk add --no-cache curl git
 
-# ビルドに必要なツールをインストール
-RUN apk add --no-cache git
+# Airをダウンロードしてインストール
+RUN go install github.com/air-verse/air@v1.61.7
 
-# 依存関係をコピーしてダウンロード
+# ワーキングディレクトリを設定
+WORKDIR /app
+
+# go.mod と go.sum をコピーして依存関係をインストール
 COPY go.mod go.sum ./
 RUN go mod download
 
-# ソースコードをコピー
-COPY . .
+# ソースコードと設定ファイルをコピー
+COPY . ./
 
-# デバッグ：ファイル一覧を表示
-RUN ls -la
+ENV GO_ENV development
 
-# バイナリをビルド（詳細なエラー情報付き）
-RUN CGO_ENABLED=0 GOOS=linux go build -v -o spicedb-server .
-
-# ビルド後のファイル確認
-RUN ls -la spicedb-server
-
-# 実行用の軽量イメージ
-FROM alpine:latest
-
-RUN apk --no-cache add ca-certificates
-WORKDIR /app
-
-# ビルドしたバイナリと設定ファイルをコピー
-COPY --from=builder /build/spicedb-server .
-COPY --from=builder /build/schema.zed .
-COPY --from=builder /build/relationships.yaml .
-
-# ファイル確認
-RUN ls -la
-
-# 実行権限を確実に付与
-RUN chmod +x ./spicedb-server
-
-# ポート8082を公開
-EXPOSE 8082
-
-# サーバーを起動
-CMD ["./spicedb-server"] 
+# ホットリロードで開発用サーバを起動
+CMD ["air", "-c", ".air.toml"] 
