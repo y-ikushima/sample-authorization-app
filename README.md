@@ -217,7 +217,7 @@ flowchart TB
 ### 前提条件
 
 - Docker & Docker Compose
-- .env.local ファイルの設定
+- .env.temp -> .env.local
 
 ### 起動方法
 
@@ -227,6 +227,9 @@ docker compose watch
 
 # サービス停止
 docker compose down
+
+# ファイルを更新する場合は
+docker compose build
 ```
 
 ## 学習リソース
