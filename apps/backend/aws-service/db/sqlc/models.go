@@ -20,4 +20,5 @@ type AwsAccountUserRelation struct {
 	ID           string
 	AwsAccountID string
 	UserID       string
+	Role         string
 }

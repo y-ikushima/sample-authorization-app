@@ -88,3 +88,23 @@ func (q *Queries) GetSystems(ctx context.Context) ([]System, error) {
 	}
 	return items, nil
 }
+
+const updateSystem = `-- name: UpdateSystem :one
+UPDATE system 
+SET name = $2, note = $3 
+WHERE id = $1 
+RETURNING id, name, note
+`
+
+type UpdateSystemParams struct {
+	ID   string
+	Name string
+	Note string
+}
+
+func (q *Queries) UpdateSystem(ctx context.Context, arg UpdateSystemParams) (System, error) {
+	row := q.db.QueryRow(ctx, updateSystem, arg.ID, arg.Name, arg.Note)
+	var i System
+	err := row.Scan(&i.ID, &i.Name, &i.Note)
+	return i, err
+}

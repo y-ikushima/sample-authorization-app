@@ -10,23 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// 環境変数のデフォルト値
-const (
-	defaultUserServiceURL = "http://user-service:3003"
-)
-
-var (
-	userServiceURL string
-)
-
-func init() {
-	// 環境変数からUser Service URLを取得
-	userServiceURL = os.Getenv("USER_SERVICE_URL")
-	if userServiceURL == "" {
-		userServiceURL = defaultUserServiceURL
-	}
-}
-
 func main() {
 	// データベース接続を設定
 	config, err := pgxpool.ParseConfig(getDBURL())

@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"system-service/db/sqlc"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,9 +32,35 @@ type SystemUserInfo struct {
 	SystemID  string `json:"system_id"`
 }
 
+// システム更新用のリクエスト構造体
+type UpdateSystemRequest struct {
+	Name string `json:"Name" binding:"required"`
+	Note string `json:"Note"`
+}
+
+// User ServiceのURLを環境変数から取得（デフォルト値付き）
+var userServiceURL = func() string {
+	if url := os.Getenv("USER_SERVICE_URL"); url != "" {
+		return url
+	}
+	return "http://user-service:3003/api"
+}()
+
 func setupRouter(queries *sqlc.Queries) *gin.Engine {
 	// Ginを設定
 	r := gin.Default()
+
+	// CORS設定を追加
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{
+		"http://localhost:3000", // Next.js development server
+		"http://localhost:3001", 
+		"http://localhost:3002",
+	}
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
+	config.AllowCredentials = true
+	r.Use(cors.New(config))
 
 	// ヘルスチェック用の簡単なエンドポイントを定義
 	r.GET("/health", func(c *gin.Context) {
@@ -41,8 +69,17 @@ func setupRouter(queries *sqlc.Queries) *gin.Engine {
 			"status": "UP",
 		})
 	})
+	setupRoutes(r.Group("/api/casbin"), queries)
+	setupRoutes(r.Group("/api/opa"), queries)
+	setupRoutes(r.Group("/api/spicedb"), queries)
 
-	r.GET("/system/all", func(c *gin.Context) {
+	return r
+}
+
+
+func  setupRoutes(api *gin.RouterGroup,queries *sqlc.Queries) {
+
+	api.GET("/system/all", func(c *gin.Context) {
 		systems, err := queries.GetSystems(c)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -51,7 +88,7 @@ func setupRouter(queries *sqlc.Queries) *gin.Engine {
 		c.JSON(http.StatusOK, systems)
 	})
 
-	r.GET("/system/:id", func(c *gin.Context) {
+	api.GET("/system/:id", func(c *gin.Context) {
 		system, err := queries.GetSystem(c, c.Param("id"))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -60,7 +97,7 @@ func setupRouter(queries *sqlc.Queries) *gin.Engine {
 		c.JSON(http.StatusOK, system)
 	})	
 
-	r.GET("/system/account/:id", func(c *gin.Context) {
+	api.GET("/system/account/:id", func(c *gin.Context) {
 		accounts, err := queries.GetSystemAccounts(c, c.Param("id"))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -70,7 +107,7 @@ func setupRouter(queries *sqlc.Queries) *gin.Engine {
 	})
 
 	// 🎯 システムに所属するユーザの名称一覧を取得するAPI
-	r.GET("/system/:id/users", func(c *gin.Context) {
+	api.GET("/system/:id/users", func(c *gin.Context) {
 		systemID := c.Param("id")
 		
 		// 1. システムに関連するユーザーIDを取得
@@ -122,9 +159,33 @@ func setupRouter(queries *sqlc.Queries) *gin.Engine {
 		
 		c.JSON(http.StatusOK, result)
 	})
-	
-	return r
+
+	// システム更新API
+	api.PUT("/system/:id", func(c *gin.Context) {
+		systemID := c.Param("id")
+		
+		var req UpdateSystemRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		
+		// システムを更新
+		updatedSystem, err := queries.UpdateSystem(c, sqlc.UpdateSystemParams{
+			ID:   systemID,
+			Name: req.Name,
+			Note: req.Note,
+		})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		
+		c.JSON(http.StatusOK, updatedSystem)
+	})
 }
+
+
 
 // User Serviceからユーザー情報を一括取得する関数
 func fetchUsersFromUserService(userIDs []string) ([]UserInfo, error) {
