@@ -39,5 +39,24 @@ func setupRouter(queries *sqlc.Queries) *gin.Engine {
 		c.JSON(http.StatusOK, user)
 	})	
 
-		return r
+	// 複数ユーザーIDで一括取得するAPI
+	r.POST("/users/batch", func(c *gin.Context) {
+		var request struct {
+			UserIDs []string `json:"user_ids"`
+		}
+		
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		
+		users, err := queries.GetUsersByIDs(c, request.UserIDs)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, users)
+	})
+
+	return r
 }

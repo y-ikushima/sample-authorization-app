@@ -23,7 +23,10 @@ func (q *Queries) GetSystem(ctx context.Context, id string) (System, error) {
 }
 
 const getSystemAccounts = `-- name: GetSystemAccounts :many
-SELECT t1.id, name, note, t2.id, system_id, user_id FROM system t1 left join system_user_relation t2 on t1.id = t2.system_id where t2.system_id = $1
+SELECT t1.id, t1.name, t1.note, t2.id, t2.system_id, t2.user_id 
+FROM system t1 
+LEFT JOIN system_user_relation t2 ON t1.id = t2.system_id 
+WHERE t1.id = $1
 `
 
 type GetSystemAccountsRow struct {
@@ -35,8 +38,8 @@ type GetSystemAccountsRow struct {
 	UserID   pgtype.Text
 }
 
-func (q *Queries) GetSystemAccounts(ctx context.Context, systemID string) ([]GetSystemAccountsRow, error) {
-	rows, err := q.db.Query(ctx, getSystemAccounts, systemID)
+func (q *Queries) GetSystemAccounts(ctx context.Context, id string) ([]GetSystemAccountsRow, error) {
+	rows, err := q.db.Query(ctx, getSystemAccounts, id)
 	if err != nil {
 		return nil, err
 	}

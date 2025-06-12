@@ -5,4 +5,7 @@ SELECT * FROM system WHERE id = $1;
 SELECT * FROM system;
 
 -- name: GetSystemAccounts :many
-SELECT * FROM system t1 left join system_user_relation t2 on t1.id = t2.system_id where t2.system_id = $1;
+SELECT t1.id, t1.name, t1.note, t2.id, t2.system_id, t2.user_id 
+FROM system t1 
+LEFT JOIN system_user_relation t2 ON t1.id = t2.system_id 
+WHERE t1.id = $1;
