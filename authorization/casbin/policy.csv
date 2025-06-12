@@ -1,39 +1,44 @@
-# Admin権限 - フルアクセス
 p, admin, /api/**, *
 p, admin, /aws/**, *
 p, admin, /system/**, *
 p, admin, /user/**, *
 
-# システム権限（システムごとに設定）
-# オーナー権限 - システム全権
-p, system_owner, /system/*/**, *
+p, jiro, /system/system1*, *
+p, jiro, /system/system2*, *
 
-# マネージャー権限 - システムの修正、メンバー操作不可
-p, system_manager, /system/**/**, (GET|PUT|POST|DELETE)
-p, system_manager, /system/*/members, GET
+p, saburo, /system/system1*, GET
+p, saburo, /system/system1*, PUT
+p, saburo, /system/system1*, POST
+p, saburo, /system/system1*, DELETE
+p, saburo, /system/system3*, GET
+p, saburo, /system/system3*, PUT
+p, saburo, /system/system3*, POST
+p, saburo, /system/system3*, DELETE
 
-# スタッフ権限 - 閲覧のみ
-p, system_staff, /system/**/**, GET
+p, hanako, /system/system2*, GET
+p, hanako, /system/system3*, GET
 
-# AWS権限（システム権限とは完全に独立）
-# AWS権限はシステムの権限とは関係なく、個別に設定される
-p, aws_owner, /aws/**, *
-p, aws_manager, /aws/**, GET
-p, aws_staff, /aws/**, GET
+p, alice, /system/system4*, GET
 
-# ユーザーのロール割り当て（グローバル）
+p, jiro, /aws/aws1*, *
+
+p, saburo, /aws/aws1*, GET
+
+p, hanako, /aws/aws1*, GET
+
+p, alice, /aws/aws2*, *
+
 g, taro, admin
 
-# ユーザーのシステム権限割り当て（複数システムに所属可能）
 g, jiro, system_owner:system1
 g, jiro, system_owner:system2
 g, saburo, system_manager:system1
 g, saburo, system_manager:system3
 g, hanako, system_staff:system2
 g, hanako, system_staff:system3
+g, alice, system_staff:system4
 
-# AWS権限割り当て（システム権限とは独立して設定）
-# システムでのロールに関係なく、AWS権限は個別に付与される
 g, jiro, aws_owner:aws1
 g, saburo, aws_manager:aws1
-g, hanako, aws_staff:aws1 
+g, hanako, aws_staff:aws1
+g, alice, aws_owner:aws2 

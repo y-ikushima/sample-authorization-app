@@ -1,5 +1,5 @@
 # SpiceDB リレーションシップ定義
-# 新しい認可条件に基づく設定
+# README.mdの権限マトリックスと権限の独立性の例に基づく設定
 
 relationships:
   # グローバル管理者設定（Admin - フルアクセス）
@@ -35,24 +35,38 @@ relationships:
     relation: "staff"
     subject: "user:hanako"
 
+  # alice - system4のスタッフ
+  - resource: "system:system4"
+    relation: "staff"
+    subject: "user:alice"
+
   # AWSの権限設定（システム権限とは完全に独立）
-  # システムでのロールに関係なく、AWS権限は個別に付与される
+  # 例：sabuроはsystem1のマネージャーだが、aws1ではマネージャー権限（読取のみ）
   # jiro - aws1のオーナー
   - resource: "aws:aws1"
     relation: "owner"
     subject: "user:jiro"
 
-  # saburo - aws1のマネージャー（システムでの権限とは無関係）
+  # saburo - aws1のマネージャー（システム権限とは独立）
   - resource: "aws:aws1"
     relation: "manager"
     subject: "user:saburo"
 
-  # hanako - aws1のスタッフ（システムでの権限とは無関係）
+  # hanako - aws1のスタッフ（システム権限とは独立）
   - resource: "aws:aws1"
     relation: "staff"
     subject: "user:hanako"
+
+  # alice - aws2のオーナー（システム権限とは独立）
+  - resource: "aws:aws2"
+    relation: "owner"
+    subject: "user:alice"
 
   # AWSとシステムの関係設定（所属関係のみ、権限には影響しない）
   - resource: "aws:aws1"
     relation: "system"
     subject: "system:system1"
+
+  - resource: "aws:aws2"
+    relation: "system"
+    subject: "system:system2"

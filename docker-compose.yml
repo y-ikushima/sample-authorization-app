@@ -117,6 +117,8 @@ services:
     networks:
       - authorization-network
     container_name: aws-web
+    env_file:
+      - .env.local
     build:
       context: ./apps/frontend/aws-web
       dockerfile: Dockerfile.dev
@@ -134,6 +136,8 @@ services:
     networks:
       - authorization-network
     container_name: system-web
+    env_file:
+      - .env.local
     build:
       context: ./apps/frontend/system-web
       dockerfile: Dockerfile.dev
@@ -152,6 +156,8 @@ services:
     networks:
       - authorization-network
     container_name: casbin-server
+    env_file:
+      - .env.local
     build:
       context: ./authorization/casbin
       dockerfile: Dockerfile.dev
@@ -168,6 +174,8 @@ services:
     networks:
       - authorization-network
     container_name: opa-server
+    env_file:
+      - .env.local
     build:
       context: ./authorization/opa
       dockerfile: Dockerfile.dev
@@ -184,6 +192,8 @@ services:
     networks:
       - authorization-network
     container_name: spicedb-server
+    env_file:
+      - .env.local
     build:
       context: ./authorization/spicedb
       dockerfile: Dockerfile.dev

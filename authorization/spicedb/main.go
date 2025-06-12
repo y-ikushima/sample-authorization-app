@@ -52,6 +52,24 @@ var permissionMap = map[string][]string{
 // 実行時に設定ファイルから読み込まれるリレーションシップ
 var relationships []Relationship
 
+// CORSミドルウェア
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// CORSヘッダーを設定
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		
+		// OPTIONSリクエストの場合はここで終了
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	fmt.Println("Initializing SpiceDB Authorization Server...")
 
@@ -64,10 +82,16 @@ func main() {
 
 	// API endpoints
 	router.HandleFunc("/authorize", authorizeHandler).Methods("POST")
+	router.HandleFunc("/authorize", optionsHandler).Methods("OPTIONS")
 	router.HandleFunc("/relationships", getRelationshipsHandler).Methods("GET")
 	router.HandleFunc("/relationships", addRelationshipHandler).Methods("POST")
 	router.HandleFunc("/relationships", removeRelationshipHandler).Methods("DELETE")
+	router.HandleFunc("/relationships", optionsHandler).Methods("OPTIONS")
 	router.HandleFunc("/health", healthHandler).Methods("GET")
+	router.HandleFunc("/health", optionsHandler).Methods("OPTIONS")
+
+	// CORS対応
+	corsHandler := enableCORS(router)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -76,7 +100,7 @@ func main() {
 
 	fmt.Printf("SpiceDB Authorization Server starting on port %s\n", port)
 	fmt.Printf("Loaded %d relationships from config file\n", len(relationships))
-	log.Fatal(http.ListenAndServe(":"+port, router))
+	log.Fatal(http.ListenAndServe(":"+port, corsHandler))
 }
 
 func loadRelationships() error {
@@ -215,4 +239,8 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		"service":       "spicedb-authorization-server",
 		"relationships": fmt.Sprintf("%d loaded from config", len(relationships)),
 	})
+}
+
+func optionsHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 } 

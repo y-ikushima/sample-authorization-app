@@ -16,11 +16,14 @@ user_system_roles := {
     "hanako": {
         "system2": "staff",
         "system3": "staff"
+    },
+    "alice": {
+        "system4": "staff"
     }
 }
 
 # AWS権限の定義（システム権限とは完全に独立）
-# システムでのロールに関係なく、AWS権限は個別に設定される
+# 例：sabuроはsystem1のマネージャーだが、aws1ではマネージャー権限（読取のみ）
 user_aws_roles := {
     "jiro": {
         "aws1": "owner"
@@ -30,6 +33,9 @@ user_aws_roles := {
     },
     "hanako": {
         "aws1": "staff"
+    },
+    "alice": {
+        "aws2": "owner"
     }
 }
 
@@ -48,7 +54,7 @@ allow {
     startswith(input.resource, "system:")
     system_id := split(input.resource, ":")[1]
     user_role := user_system_roles[input.subject][system_id]
-    permission_check(user_role, input.permission)
+    system_permission_check(user_role, input.permission)
 }
 
 # AWSリソースの場合（システム権限とは独立して判定）
@@ -60,33 +66,53 @@ allow {
 }
 
 # システム権限チェック関数
-permission_check(role, permission) {
+# システム権限マトリックス:
+# Admin        → 読取✓ 更新✓ 削除✓ メンバー管理✓
+# オーナー     → 読取✓ 更新✓ 削除✓ メンバー管理✓  
+# マネージャー → 読取✓ 更新✓ 削除✓ メンバー管理✗
+# スタッフ     → 読取✓ 更新✗ 削除✗ メンバー管理✗
+
+system_permission_check(role, permission) {
     role == "owner"
+    # オーナーは全権限
 }
 
-permission_check(role, permission) {
+system_permission_check(role, permission) {
     role == "manager"
     permission == "read"
 }
 
-permission_check(role, permission) {
+system_permission_check(role, permission) {
     role == "manager"
     permission == "write"
 }
 
-permission_check(role, permission) {
+system_permission_check(role, permission) {
     role == "manager"
     permission == "delete"
 }
 
-permission_check(role, permission) {
+# マネージャーはメンバー管理不可
+# system_permission_check(role, permission) {
+#     role == "manager"
+#     permission == "manage_members"
+# }
+
+system_permission_check(role, permission) {
     role == "staff"
     permission == "read"
 }
 
 # AWS権限チェック関数（システム権限とは独立）
+# AWS権限マトリックス:
+# Admin        → 読取✓ 更新✓ 削除✓ 管理✓
+# オーナー     → 読取✓ 更新✓ 削除✓ 管理✓
+# マネージャー → 読取✓ 更新✗ 削除✗ 管理✗
+# スタッフ     → 読取✓ 更新✗ 削除✗ 管理✗
+
 aws_permission_check(role, permission) {
     role == "owner"
+    # オーナーは全権限
 }
 
 aws_permission_check(role, permission) {

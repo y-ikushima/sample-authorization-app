@@ -1,11 +1,23 @@
 /**
  * 階層型認可システムのスキーマ定義
- * 新しい条件に基づく認可設定：
- * - Admin: フルアクセス
+ * README.mdの権限マトリックスに基づく認可設定：
+ * 
+ * システム権限マトリックス:
+ * Admin        → 読取✓ 更新✓ 削除✓ メンバー管理✓
+ * オーナー     → 読取✓ 更新✓ 削除✓ メンバー管理✓
+ * マネージャー → 読取✓ 更新✓ 削除✓ メンバー管理✗
+ * スタッフ     → 読取✓ 更新✗ 削除✗ メンバー管理✗
+ * 
+ * AWS権限マトリックス（システム権限とは独立）:
+ * Admin        → 読取✓ 更新✓ 削除✓ 管理✓
+ * オーナー     → 読取✓ 更新✓ 削除✓ 管理✓
+ * マネージャー → 読取✓ 更新✗ 削除✗ 管理✗
+ * スタッフ     → 読取✓ 更新✗ 削除✗ 管理✗
+ * 
+ * 権限の独立性：
  * - ユーザは複数のシステムに所属可能
- * - システム権限: オーナー（全権）、マネージャー（修正、メンバー操作不可）、スタッフ（閲覧のみ）
- * - AWS権限: システム権限とは完全に独立、個別に設定される
- * - AWSは単一システムに所属、オーナー・マネージャー・スタッフが存在、マネージャーはスタッフと同じ権限
+ * - AWS権限はシステム権限とは完全に独立
+ * - 例：sabuроはsystem1のマネージャーだが、aws1ではマネージャー権限（読取のみ）
  */
 
 // ユーザー定義
@@ -18,12 +30,12 @@ definition system {
     relation manager: user
     relation staff: user
     
-    // 権限の定義
+    // システム権限マトリックスに基づく権限定義
     permission read: staff + manager + owner
-    permission write: manager + owner
-    permission delete: manager + owner
+    permission write: manager + owner  // スタッフは更新不可
+    permission delete: manager + owner  // スタッフは削除不可
+    permission manage_members: owner   // メンバー管理はオーナーのみ（マネージャー不可）
     permission admin: owner
-    permission manage_members: owner  // メンバー管理はオーナーのみ
 }
 
 // AWSアカウントリソース定義（システム権限とは独立）
@@ -36,11 +48,12 @@ definition aws {
     // システムとの関係（所属関係のみ、権限には影響しない）
     relation system: system
     
-    // 権限の定義（マネージャーはスタッフと同じ権限、システム権限とは独立）
+    // AWS権限マトリックスに基づく権限定義
+    // マネージャーとスタッフは読取のみ（同じ権限）
     permission read: staff + manager + owner
-    permission write: owner
-    permission delete: owner
-    permission admin: owner
+    permission write: owner  // オーナーのみ更新可能
+    permission delete: owner  // オーナーのみ削除可能
+    permission admin: owner   // オーナーのみ管理可能
 }
 
 // ユーザー管理リソース定義
@@ -77,6 +90,6 @@ definition global {
     // グローバル管理者（Admin）
     relation admin: user
     
-    // 全ての権限を持つ
+    // 全ての権限を持つ（フルアクセス）
     permission full_access: admin
 } 

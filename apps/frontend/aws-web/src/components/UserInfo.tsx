@@ -1,4 +1,4 @@
-import { auth, getCurrentUserId } from "@/lib/auth";
+import { getCurrentUserId } from "@/lib/auth";
 import { useEffect, useState } from "react";
 
 export default function UserInfo() {
@@ -21,26 +21,6 @@ export default function UserInfo() {
         <p>
           <span>ユーザーID:</span> {userId}
         </p>
-        <p>
-          <span>認証状態:</span>{" "}
-          {auth.isAuthenticated() ? "認証済み" : "未認証"}
-        </p>
-        <div>
-          <button
-            onClick={() => {
-              const newUserId = prompt(
-                "新しいユーザーIDを入力してください:",
-                userId
-              );
-              if (newUserId) {
-                auth.setUserId(newUserId);
-                setUserId(newUserId);
-              }
-            }}
-          >
-            ユーザーIDを変更
-          </button>
-        </div>
       </div>
     </div>
   );

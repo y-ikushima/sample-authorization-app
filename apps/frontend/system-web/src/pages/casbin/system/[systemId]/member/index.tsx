@@ -1,3 +1,4 @@
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import UserInfo from "@/components/UserInfo";
 import { NextPage } from "next";
 import Link from "next/link";
@@ -63,64 +64,58 @@ const SystemMemberPage: NextPage = () => {
     fetchMembers();
   }, [systemId]);
 
+  // systemIdが取得できるまで何も表示しない
+  if (!systemId || Array.isArray(systemId)) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <>
       <UserInfo />
-      <div>
-        <div style={{ marginBottom: "20px" }}>
-          <Link href={`/casbin/system/${systemId}`}>
-            <button
-              style={{
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "14px",
-                marginRight: "10px",
-              }}
-            >
-              ← システム詳細に戻る
-            </button>
-          </Link>
-          <h1>
-            {systemName ? `${systemName} - メンバー一覧` : "メンバー一覧"}
-          </h1>
-        </div>
-
-        {loading && <p>読み込み中...</p>}
-
-        {error && (
-          <div style={{ color: "red", margin: "10px 0" }}>エラー: {error}</div>
-        )}
-
-        {!loading && !error && (
-          <div>
-            <div style={{ marginBottom: "20px" }}>
-              <h2>メンバー一覧 ({members.length}人)</h2>
-            </div>
-
-            {members.length === 0 ? (
-              <div
+      <ProtectedRoute resource={`/system/${systemId}/members`} action="GET">
+        <div>
+          <div style={{ marginBottom: "20px" }}>
+            <Link href={`/casbin/system/${systemId}`}>
+              <button
                 style={{
-                  textAlign: "center",
-                  padding: "40px",
-                  border: "1px solid #ddd",
-                  borderRadius: "8px",
-                  backgroundColor: "#f9f9f9",
+                  backgroundColor: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  padding: "8px 16px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  marginRight: "10px",
                 }}
               >
-                <p>このシステムにはメンバーが登録されていません。</p>
-              </div>
-            ) : (
-              <div>
+                ← システム詳細に戻る
+              </button>
+            </Link>
+            <h1>
+              {systemName ? `${systemName} - メンバー一覧` : "メンバー一覧"}
+            </h1>
+          </div>
+
+          {loading && <p>読み込み中...</p>}
+
+          {error && (
+            <div style={{ color: "red", margin: "10px 0" }}>
+              エラー: {error}
+            </div>
+          )}
+
+          {!loading && !error && (
+            <div>
+              <h2>メンバー一覧 ({members.length}人)</h2>
+
+              {members.length === 0 ? (
+                <p>メンバーが見つかりませんでした。</p>
+              ) : (
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fill, minmax(300px, 1fr))",
                     gap: "16px",
+                    marginTop: "20px",
                   }}
                 >
                   {members.map((member, index) => (
@@ -173,69 +168,69 @@ const SystemMemberPage: NextPage = () => {
                     </div>
                   ))}
                 </div>
+              )}
 
-                <div
+              <div
+                style={{
+                  marginTop: "30px",
+                  padding: "20px",
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: "8px",
+                  border: "1px solid #dee2e6",
+                }}
+              >
+                <h3 style={{ margin: "0 0 10px 0", fontSize: "16px" }}>
+                  メンバー管理
+                </h3>
+                <p
                   style={{
-                    marginTop: "30px",
-                    padding: "20px",
-                    backgroundColor: "#f8f9fa",
-                    borderRadius: "8px",
-                    border: "1px solid #dee2e6",
+                    margin: "0 0 15px 0",
+                    color: "#666",
+                    fontSize: "14px",
                   }}
                 >
-                  <h3 style={{ margin: "0 0 10px 0", fontSize: "16px" }}>
-                    メンバー管理
-                  </h3>
-                  <p
+                  メンバーの追加・削除は管理者にお問い合わせください。
+                </p>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
                     style={{
-                      margin: "0 0 15px 0",
-                      color: "#666",
+                      backgroundColor: "#007bff",
+                      color: "white",
+                      border: "none",
+                      padding: "8px 16px",
+                      borderRadius: "4px",
+                      cursor: "pointer",
                       fontSize: "14px",
                     }}
+                    onClick={() => {
+                      // 将来的にメンバー追加機能を実装
+                      alert("メンバー追加機能は今後実装予定です");
+                    }}
                   >
-                    メンバーの追加・削除は管理者にお問い合わせください。
-                  </p>
-                  <div style={{ display: "flex", gap: "10px" }}>
-                    <button
-                      style={{
-                        backgroundColor: "#007bff",
-                        color: "white",
-                        border: "none",
-                        padding: "8px 16px",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                      }}
-                      onClick={() => {
-                        // 将来的にメンバー追加機能を実装
-                        alert("メンバー追加機能は今後実装予定です");
-                      }}
-                    >
-                      メンバー追加
-                    </button>
-                    <button
-                      style={{
-                        backgroundColor: "#6c757d",
-                        color: "white",
-                        border: "none",
-                        padding: "8px 16px",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                      }}
-                      onClick={() => {
-                        window.location.reload();
-                      }}
-                    >
-                      更新
-                    </button>
-                  </div>
+                    メンバー追加
+                  </button>
+                  <button
+                    style={{
+                      backgroundColor: "#6c757d",
+                      color: "white",
+                      border: "none",
+                      padding: "8px 16px",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                    onClick={() => {
+                      window.location.reload();
+                    }}
+                  >
+                    更新
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </div>
+      </ProtectedRoute>
     </>
   );
 };

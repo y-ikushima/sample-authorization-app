@@ -1,3 +1,4 @@
+import CasbinTest from "@/components/CasbinTest";
 import UserInfo from "@/components/UserInfo";
 import { NextPage } from "next";
 import Link from "next/link";
@@ -51,6 +52,9 @@ const CsbinSystemPage: NextPage = () => {
         <div>
           <h1>Casbin System List</h1>
         </div>
+
+        {/* Casbinテストコンポーネント */}
+        <CasbinTest />
 
         {loading && <p>読み込み中...</p>}
 

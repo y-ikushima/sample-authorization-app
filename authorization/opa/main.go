@@ -65,6 +65,24 @@ var (
 	config    Config
 )
 
+// CORSミドルウェア
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// CORSヘッダーを設定
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		
+		// OPTIONSリクエストの場合はここで終了
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	fmt.Println("Initializing OPA Authorization Server...")
 
@@ -82,10 +100,18 @@ func main() {
 
 	// API endpoints
 	router.HandleFunc("/authorize", authorizeHandler).Methods("POST")
+	router.HandleFunc("/authorize", optionsHandler).Methods("OPTIONS")
 	router.HandleFunc("/evaluate", evaluateHandler).Methods("POST")
+	router.HandleFunc("/evaluate", optionsHandler).Methods("OPTIONS")
 	router.HandleFunc("/users", getUsersHandler).Methods("GET")
+	router.HandleFunc("/users", optionsHandler).Methods("OPTIONS")
 	router.HandleFunc("/resources", getResourcesHandler).Methods("GET")
+	router.HandleFunc("/resources", optionsHandler).Methods("OPTIONS")
 	router.HandleFunc("/health", healthHandler).Methods("GET")
+	router.HandleFunc("/health", optionsHandler).Methods("OPTIONS")
+
+	// CORS対応
+	corsHandler := enableCORS(router)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -94,7 +120,7 @@ func main() {
 
 	fmt.Printf("OPA Authorization Server starting on port %s\n", port)
 	fmt.Printf("Loaded %d users from config file\n", len(config.Users))
-	log.Fatal(http.ListenAndServe(":"+port, router))
+	log.Fatal(http.ListenAndServe(":"+port, corsHandler))
 }
 
 func loadConfig() error {
@@ -254,4 +280,8 @@ func getPolicyContent() string {
 		return ""
 	}
 	return string(data)
+}
+
+func optionsHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 } 
