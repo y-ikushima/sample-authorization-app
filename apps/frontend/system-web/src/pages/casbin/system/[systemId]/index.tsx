@@ -1,5 +1,6 @@
 import { ProtectedButton, ProtectedRoute } from "@/components/ProtectedRoute";
 import UserInfo from "@/components/UserInfo";
+import { getCurrentUserId } from "@/lib/auth";
 import { NextPage } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -24,8 +25,14 @@ const SystemDetailPage: NextPage = () => {
     const fetchSystem = async () => {
       try {
         setLoading(true);
+        const userId = getCurrentUserId();
         const response = await fetch(
-          `http://localhost:3004/api/casbin/system/${systemId}`
+          `http://localhost:3004/api/casbin/system/${systemId}`,
+          {
+            headers: {
+              "X-User-ID": userId,
+            },
+          }
         );
 
         if (!response.ok) {

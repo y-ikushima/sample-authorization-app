@@ -19,7 +19,7 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 
 		// 認可チェック
-		allowed, err := checkAuthorization(subject, "/system/**", "GET")
+		allowed, err := checkAuthorization(subject, "/system-list", "GET")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -45,7 +45,7 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("id")
 
-		allowed, err := checkAuthorization(subject, "/system/"+systemID+"*", "GET")
+		allowed, err := checkAuthorization(subject, "/system/"+systemID, "GET")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -71,7 +71,7 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("id")
 
-		allowed, err := checkAuthorization(subject, "/system/"+systemID+"*", "GET")
+		allowed, err := checkAuthorization(subject, "/system/"+systemID, "GET")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -98,7 +98,7 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("id")
 
-		allowed, err := checkAuthorization(subject, "/system/"+systemID+"*", "GET")
+		allowed, err := checkAuthorization(subject, "/system/"+systemID, "GET")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -167,7 +167,7 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("id")
 
-		allowed, err := checkAuthorization(subject, "/system/"+systemID+"*", "PUT")
+		allowed, err := checkAuthorization(subject, "/system/"+systemID, "PUT")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return

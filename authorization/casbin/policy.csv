@@ -1,33 +1,54 @@
 p, admin, /api/**, *
 p, admin, /aws/**, *
 p, admin, /system/**, *
+p, admin, /system-list, *
 p, admin, /user/**, *
 
-p, jiro, /system/system1*, *
-p, jiro, /system/system2*, *
+# jiro - system1とsystem2のオーナー（全権限）
+p, jiro, /system/system1, *
+p, jiro, /system/system1/*, *
+p, jiro, /system/system2, *
+p, jiro, /system/system2/*, *
+p, jiro, /system-list, GET
 
-p, saburo, /system/system1*, GET
-p, saburo, /system/system1*, PUT
-p, saburo, /system/system1*, POST
-p, saburo, /system/system1*, DELETE
-p, saburo, /system/system3*, GET
-p, saburo, /system/system3*, PUT
-p, saburo, /system/system3*, POST
-p, saburo, /system/system3*, DELETE
+# saburo - system1とsystem3のマネージャー（読取/更新/削除、メンバー管理不可）
+p, saburo, /system/system1, GET
+p, saburo, /system/system1, PUT
+p, saburo, /system/system1, POST
+p, saburo, /system/system1, DELETE
+p, saburo, /system/system1/*, GET
+p, saburo, /system/system1/*, PUT
+p, saburo, /system/system1/*, POST
+p, saburo, /system/system1/*, DELETE
+p, saburo, /system/system3, GET
+p, saburo, /system/system3, PUT
+p, saburo, /system/system3, POST
+p, saburo, /system/system3, DELETE
+p, saburo, /system/system3/*, GET
+p, saburo, /system/system3/*, PUT
+p, saburo, /system/system3/*, POST
+p, saburo, /system/system3/*, DELETE
+p, saburo, /system-list, GET
 
-p, hanako, /system/system2*, GET
-p, hanako, /system/system3*, GET
+# hanako - system2とsystem3のスタッフ（読取のみ）
+p, hanako, /system/system2, GET
+p, hanako, /system/system2/*, GET
+p, hanako, /system/system3, GET
+p, hanako, /system/system3/*, GET
+p, hanako, /system-list, GET
 
-p, alice, /system/system4*, GET
+# alice - system4のスタッフ（読取のみ）
+p, alice, /system/system4, GET
+p, alice, /system/system4/*, GET
+p, alice, /system-list, GET
 
+# AWS権限
 p, jiro, /aws/aws1*, *
-
 p, saburo, /aws/aws1*, GET
-
 p, hanako, /aws/aws1*, GET
-
 p, alice, /aws/aws2*, *
 
+# グループ権限
 g, taro, admin
 
 g, jiro, system_owner:system1

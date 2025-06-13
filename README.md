@@ -238,7 +238,7 @@ docker compose build
 - [OPA Documentation](https://www.openpolicyagent.org/)
 - [SpiceDB Documentation](https://authzed.com/docs/)
 
-## テーブル情報
+## テーブル情報 docker compose build
 
 ### User Service（ユーザーサービス）
 
