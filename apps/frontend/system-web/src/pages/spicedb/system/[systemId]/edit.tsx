@@ -1,5 +1,6 @@
 import { SpiceDBProtectedRoute } from "@/components/SpiceDBProtectedRoute";
 import UserInfo from "@/components/UserInfo";
+import { getCurrentUserId } from "@/lib/auth";
 import { NextPage } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -30,8 +31,14 @@ const SpiceDBSystemEditPage: NextPage = () => {
     const fetchSystem = async () => {
       try {
         setLoading(true);
+        const userId = getCurrentUserId();
         const response = await fetch(
-          `http://localhost:3004/api/spicedb/system/${systemId}`
+          `http://localhost:3004/api/spicedb/system/${systemId}`,
+          {
+            headers: {
+              "X-User-ID": userId,
+            },
+          }
         );
 
         if (!response.ok) {
@@ -78,12 +85,14 @@ const SpiceDBSystemEditPage: NextPage = () => {
       setSaving(true);
       setSaveSuccess(false);
 
+      const userId = getCurrentUserId();
       const response = await fetch(
         `http://localhost:3004/api/spicedb/system/${systemId}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
+            "X-User-ID": userId,
           },
           body: JSON.stringify(formData),
         }

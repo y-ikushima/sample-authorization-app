@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // Casbin ServiceのURLを環境変数から取得（デフォルト値付き）
@@ -17,6 +18,14 @@ var casbinServiceURL = func() string {
 	return "http://casbin-server:8080"
 }()
 
+// SpiceDB ServiceのURLを環境変数から取得（デフォルト値付き）
+var spiceDBServiceURL = func() string {
+	if url := os.Getenv("SPICEDB_SERVICE_URL"); url != "" {
+		return url
+	}
+	return "http://spicedb-server:8082"
+}()
+
 // Casbin 認可用の構造体
 type AuthRequest struct {
 	Subject string `json:"subject"`
@@ -25,6 +34,18 @@ type AuthRequest struct {
 }
 
 type AuthResponse struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+// SpiceDB 認可用の構造体
+type SpiceDBAuthRequest struct {
+	Subject    string `json:"subject"`
+	Resource   string `json:"resource"`
+	Permission string `json:"permission"`
+}
+
+type SpiceDBAuthResponse struct {
 	Allowed bool   `json:"allowed"`
 	Reason  string `json:"reason,omitempty"`
 }
@@ -66,4 +87,64 @@ func checkAuthorization(subject, object, action string) (bool, error) {
 	}
 
 	return authResp.Allowed, nil
+}
+
+// SpiceDBサービスで認可チェックを行う関数
+func checkSpiceDBAuthorization(subject, resource, permission string) (bool, error) {
+	// subjectにuser:プレフィックスを追加（SpiceDBの要求に合わせる）
+	if subject != "anonymous" && !strings.HasPrefix(subject, "user:") {
+		subject = "user:" + subject
+	}
+
+	authReq := SpiceDBAuthRequest{
+		Subject:    subject,
+		Resource:   resource,
+		Permission: permission,
+	}
+
+	jsonData, err := json.Marshal(authReq)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal SpiceDB auth request: %w", err)
+	}
+
+	// SpiceDBサービスに認可リクエストを送信
+	resp, err := http.Post(spiceDBServiceURL+"/authorize", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return false, fmt.Errorf("failed to call SpiceDB service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("SpiceDB service returned status: %d", resp.StatusCode)
+	}
+
+	// レスポンスを読み取り
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed to read SpiceDB response: %w", err)
+	}
+
+	// JSONをパース
+	var authResp SpiceDBAuthResponse
+	if err := json.Unmarshal(body, &authResp); err != nil {
+		return false, fmt.Errorf("failed to unmarshal SpiceDB response: %w", err)
+	}
+
+	return authResp.Allowed, nil
+}
+
+// グローバル管理者権限をチェックする関数
+func checkGlobalAdminPermission(subject string) (bool, error) {
+	return checkSpiceDBAuthorization(subject, "global:main", "admin")
+}
+
+// SpiceDB認可チェック（グローバル管理者権限も含む）
+func checkSpiceDBAuthorizationWithGlobal(subject, resource, permission string) (bool, error) {
+	// まずグローバル管理者権限をチェック
+	if globalAdmin, err := checkGlobalAdminPermission(subject); err == nil && globalAdmin {
+		return true, nil
+	}
+
+	// 通常の権限チェック
+	return checkSpiceDBAuthorization(subject, resource, permission)
 } 

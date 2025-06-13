@@ -1,5 +1,6 @@
 import SpiceDBTest from "@/components/SpiceDBTest";
 import UserInfo from "@/components/UserInfo";
+import { getCurrentUserId } from "@/lib/auth";
 import { NextPage } from "next";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -19,8 +20,14 @@ const SpicedbSystemPage: NextPage = () => {
     const fetchSystems = async () => {
       try {
         setLoading(true);
+        const userId = getCurrentUserId();
         const response = await fetch(
-          "http://localhost:3004/api/spicedb/system/all"
+          "http://localhost:3004/api/spicedb/system/all",
+          {
+            headers: {
+              "X-User-ID": userId,
+            },
+          }
         );
 
         if (!response.ok) {

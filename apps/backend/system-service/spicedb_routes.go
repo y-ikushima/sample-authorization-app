@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Casbin認可チェック付きのルート設定
-func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
+// SpiceDB認可チェック付きのルート設定
+func setupSpiceDBRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 
 	api.GET("/system/all", func(c *gin.Context) {
 		// 認可チェック - subjectはリクエストヘッダーから取得（仮でuser_idを使用）
@@ -25,10 +25,17 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 			return
 		}
 
+		// グローバル管理者権限をチェック
+		if globalAdmin, err := checkGlobalAdminPermission(subject); err == nil && globalAdmin {
+			// グローバル管理者は全システムを見ることができる
+			c.JSON(http.StatusOK, allSystems)
+			return
+		}
+
 		// 各システムに対する読み取り権限をチェックして、権限のあるシステムのみフィルタリング
 		var accessibleSystems []sqlc.System
 		for _, system := range allSystems {
-			allowed, err := checkAuthorization(subject, "/system/"+system.ID, "GET")
+			allowed, err := checkSpiceDBAuthorization(subject, "system:"+system.ID, "read")
 			if err == nil && allowed {
 				accessibleSystems = append(accessibleSystems, system)
 			}
@@ -45,7 +52,8 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("id")
 
-		allowed, err := checkAuthorization(subject, "/system/"+systemID, "GET")
+		// SpiceDB認可チェック - 特定システムの閲覧権限（グローバル管理者権限も含む）
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "system:"+systemID, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -71,7 +79,8 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("id")
 
-		allowed, err := checkAuthorization(subject, "/system/"+systemID, "GET")
+		// SpiceDB認可チェック - システムアカウント情報の閲覧権限（グローバル管理者権限も含む）
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "system:"+systemID, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -98,7 +107,8 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("id")
 
-		allowed, err := checkAuthorization(subject, "/system/"+systemID, "GET")
+		// SpiceDB認可チェック - システムユーザー情報の閲覧権限（グローバル管理者権限も含む）
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "system:"+systemID, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -167,7 +177,8 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("id")
 
-		allowed, err := checkAuthorization(subject, "/system/"+systemID, "PUT")
+		// SpiceDB認可チェック - システムの更新権限（グローバル管理者権限も含む）
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "system:"+systemID, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -197,7 +208,7 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		c.JSON(http.StatusOK, updatedSystem)
 	})
 
-	// システム削除API（Casbin用に追加）
+	// システム削除API（SpiceDB用に追加）
 	api.DELETE("/system/:id", func(c *gin.Context) {
 		// 認可チェック
 		subject := c.GetHeader("X-User-ID")
@@ -206,7 +217,8 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("id")
 
-		allowed, err := checkAuthorization(subject, "/system/"+systemID, "DELETE")
+		// SpiceDB認可チェック - システムの削除権限（グローバル管理者権限も含む）
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "system:"+systemID, "delete")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -226,7 +238,7 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		c.JSON(http.StatusOK, gin.H{"message": "システムが削除されました", "system_id": systemID})
 	})
 
-	// メンバー管理API（Casbin用に追加）
+	// メンバー管理API（SpiceDB用に追加）
 	api.POST("/system/:id/members", func(c *gin.Context) {
 		// 認可チェック
 		subject := c.GetHeader("X-User-ID")
@@ -235,13 +247,14 @@ func setupCasbinRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("id")
 
-		allowed, err := checkAuthorization(subject, "/system/"+systemID, "POST")
+		// SpiceDB認可チェック - メンバー管理権限（オーナーのみ、グローバル管理者権限も含む）
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "system:"+systemID, "manage_members")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
 		}
 		if !allowed {
-			c.JSON(http.StatusForbidden, gin.H{"error": "メンバー管理権限がありません"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "メンバー管理権限がありません（オーナーのみ）"})
 			return
 		}
 		

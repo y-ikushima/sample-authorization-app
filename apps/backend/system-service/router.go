@@ -35,7 +35,7 @@ func setupRouter(queries *sqlc.Queries) *gin.Engine {
 	})
 	setupCasbinRoutes(r.Group("/api/casbin"), queries)
 	setupRoutes(r.Group("/api/opa"), queries)
-	setupRoutes(r.Group("/api/spicedb"), queries)
+	setupSpiceDBRoutes(r.Group("/api/spicedb"), queries)
 
 	return r
 }

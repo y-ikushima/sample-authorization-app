@@ -42,9 +42,9 @@ type Relationship struct {
 
 // 権限マッピング（relation -> permissions）
 var permissionMap = map[string][]string{
-	"admin":      {"read", "write", "delete", "admin"},
-	"admin_user": {"read", "write", "delete", "admin"},
-	"owner":      {"read", "write", "delete", "admin"},
+	"admin":      {"read", "write", "delete", "admin", "manage_members"},
+	"admin_user": {"read", "write", "delete", "admin", "manage_members"},
+	"owner":      {"read", "write", "delete", "admin", "manage_members"},
 	"manager":    {"read", "write", "delete"},
 	"staff":      {"read"},
 }
