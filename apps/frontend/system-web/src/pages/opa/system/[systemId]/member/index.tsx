@@ -1,4 +1,5 @@
 import UserInfo from "@/components/UserInfo";
+import { getCurrentUserId } from "@/lib/auth";
 import { NextPage } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -26,9 +27,16 @@ const SystemMemberPage: NextPage = () => {
       try {
         setLoading(true);
 
+        const userId = getCurrentUserId();
+
         // システム情報を取得（システム名表示用）
         const systemResponse = await fetch(
-          `http://localhost:3004/api/opa/system/${systemId}`
+          `http://localhost:3004/api/opa/system/${systemId}`,
+          {
+            headers: {
+              "X-User-ID": userId,
+            },
+          }
         );
 
         if (systemResponse.ok) {
@@ -38,7 +46,12 @@ const SystemMemberPage: NextPage = () => {
 
         // メンバー一覧を取得
         const membersResponse = await fetch(
-          `http://localhost:3004/api/opa/system/${systemId}/users`
+          `http://localhost:3004/api/opa/system/${systemId}/users`,
+          {
+            headers: {
+              "X-User-ID": userId,
+            },
+          }
         );
 
         if (!membersResponse.ok) {

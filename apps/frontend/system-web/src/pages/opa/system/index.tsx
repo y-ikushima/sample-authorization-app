@@ -1,4 +1,6 @@
+import OPATest from "@/components/OPATest";
 import UserInfo from "@/components/UserInfo";
+import { getCurrentUserId } from "@/lib/auth";
 import { NextPage } from "next";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -18,8 +20,14 @@ const OpaSystemPage: NextPage = () => {
     const fetchSystems = async () => {
       try {
         setLoading(true);
+        const userId = getCurrentUserId();
         const response = await fetch(
-          "http://localhost:3004/api/opa/system/all"
+          "http://localhost:3004/api/opa/system/all",
+          {
+            headers: {
+              "X-User-ID": userId,
+            },
+          }
         );
 
         if (!response.ok) {
@@ -51,6 +59,8 @@ const OpaSystemPage: NextPage = () => {
         <div>
           <h1>OPA System List</h1>
         </div>
+
+        <OPATest />
 
         {loading && <p>読み込み中...</p>}
 

@@ -1,4 +1,5 @@
 import UserInfo from "@/components/UserInfo";
+import { getCurrentUserId } from "@/lib/auth";
 import { NextPage } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -29,8 +30,14 @@ const SystemEditPage: NextPage = () => {
     const fetchSystem = async () => {
       try {
         setLoading(true);
+        const userId = getCurrentUserId();
         const response = await fetch(
-          `http://localhost:3004/api/opa/system/${systemId}`
+          `http://localhost:3004/api/opa/system/${systemId}`,
+          {
+            headers: {
+              "X-User-ID": userId,
+            },
+          }
         );
 
         if (!response.ok) {
@@ -77,12 +84,14 @@ const SystemEditPage: NextPage = () => {
       setSaving(true);
       setSaveSuccess(false);
 
+      const userId = getCurrentUserId();
       const response = await fetch(
         `http://localhost:3004/api/opa/system/${systemId}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
+            "X-User-ID": userId,
           },
           body: JSON.stringify(formData),
         }

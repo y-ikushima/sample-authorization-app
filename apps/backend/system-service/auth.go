@@ -26,6 +26,14 @@ var spiceDBServiceURL = func() string {
 	return "http://spicedb-server:8082"
 }()
 
+// OPA ServiceのURLを環境変数から取得（デフォルト値付き）
+var opaServiceURL = func() string {
+	if url := os.Getenv("OPA_SERVICE_URL"); url != "" {
+		return url
+	}
+	return "http://opa-server:8081"
+}()
+
 // Casbin 認可用の構造体
 type AuthRequest struct {
 	Subject string `json:"subject"`
@@ -46,6 +54,18 @@ type SpiceDBAuthRequest struct {
 }
 
 type SpiceDBAuthResponse struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+// OPA 認可用の構造体
+type OPAAuthRequest struct {
+	Subject    string `json:"subject"`
+	Resource   string `json:"resource"`
+	Permission string `json:"permission"`
+}
+
+type OPAAuthResponse struct {
 	Allowed bool   `json:"allowed"`
 	Reason  string `json:"reason,omitempty"`
 }
@@ -147,4 +167,59 @@ func checkSpiceDBAuthorizationWithGlobal(subject, resource, permission string) (
 
 	// 通常の権限チェック
 	return checkSpiceDBAuthorization(subject, resource, permission)
+}
+
+// OPAサービスで認可チェックを行う関数
+func checkOPAAuthorization(subject, resource, permission string) (bool, error) {
+	authReq := OPAAuthRequest{
+		Subject:    subject,
+		Resource:   resource,
+		Permission: permission,
+	}
+
+	jsonData, err := json.Marshal(authReq)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal OPA auth request: %w", err)
+	}
+
+	// OPAサービスに認可リクエストを送信
+	resp, err := http.Post(opaServiceURL+"/authorize", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return false, fmt.Errorf("failed to call OPA service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("OPA service returned status: %d", resp.StatusCode)
+	}
+
+	// レスポンスを読み取り
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed to read OPA response: %w", err)
+	}
+
+	// JSONをパース
+	var authResp OPAAuthResponse
+	if err := json.Unmarshal(body, &authResp); err != nil {
+		return false, fmt.Errorf("failed to unmarshal OPA response: %w", err)
+	}
+
+	return authResp.Allowed, nil
+}
+
+// OPAグローバル管理者権限をチェックする関数
+func checkOPAGlobalAdminPermission(subject string) (bool, error) {
+	return checkOPAAuthorization(subject, "global:main", "admin")
+}
+
+// OPA認可チェック（グローバル管理者権限も含む）
+func checkOPAAuthorizationWithGlobal(subject, resource, permission string) (bool, error) {
+	// まずグローバル管理者権限をチェック
+	if globalAdmin, err := checkOPAGlobalAdminPermission(subject); err == nil && globalAdmin {
+		return true, nil
+	}
+
+	// 通常の権限チェック
+	return checkOPAAuthorization(subject, resource, permission)
 } 
