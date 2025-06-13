@@ -13,8 +13,7 @@ CREATE TABLE aws_account_system_relation (
 CREATE TABLE aws_account_user_relation (
     id VARCHAR(100) PRIMARY KEY,
     aws_account_id VARCHAR(100) NOT NULL,
-    user_id VARCHAR(100) NOT NULL,
-    role VARCHAR(50) NOT NULL
+    user_id VARCHAR(100) NOT NULL
 );
 
 -- AWSアカウント作成
@@ -27,9 +26,9 @@ INSERT INTO aws_account_system_relation (id, aws_account_id, system_id) VALUES (
 
 -- AWS権限割り当て（システム権限とは独立）
 -- aws1: jiro（オーナー）、saburo（マネージャー）、hanako（スタッフ）
-INSERT INTO aws_account_user_relation (id, aws_account_id, user_id, role) VALUES ('0001', 'aws1', 'jiro', 'owner');
-INSERT INTO aws_account_user_relation (id, aws_account_id, user_id, role) VALUES ('0002', 'aws1', 'saburo', 'manager');
-INSERT INTO aws_account_user_relation (id, aws_account_id, user_id, role) VALUES ('0003', 'aws1', 'hanako', 'staff');
+INSERT INTO aws_account_user_relation (id, aws_account_id, user_id) VALUES ('0001', 'aws1', 'jiro');
+INSERT INTO aws_account_user_relation (id, aws_account_id, user_id) VALUES ('0002', 'aws1', 'saburo');
+INSERT INTO aws_account_user_relation (id, aws_account_id, user_id) VALUES ('0003', 'aws1', 'hanako');
 
 -- aws2: alice（オーナー）
-INSERT INTO aws_account_user_relation (id, aws_account_id, user_id, role) VALUES ('0004', 'aws2', 'alice', 'owner');
+INSERT INTO aws_account_user_relation (id, aws_account_id, user_id) VALUES ('0004', 'aws2', 'alice');

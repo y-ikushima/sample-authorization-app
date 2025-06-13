@@ -279,8 +279,7 @@ CREATE TABLE system (
 CREATE TABLE system_user_relation (
     id VARCHAR(100) PRIMARY KEY,      -- リレーションID
     system_id VARCHAR(100) NOT NULL,  -- システムID
-    user_id VARCHAR(100) NOT NULL,    -- ユーザーID
-    role VARCHAR(50) NOT NULL         -- ロール（owner/manager/staff）
+    user_id VARCHAR(100) NOT NULL    -- ユーザーID
 );
 ```
 
@@ -323,8 +322,7 @@ CREATE TABLE aws_account_system_relation (
 CREATE TABLE aws_account_user_relation (
     id VARCHAR(100) PRIMARY KEY,       -- リレーションID
     aws_account_id VARCHAR(100) NOT NULL, -- AWSアカウントID
-    user_id VARCHAR(100) NOT NULL,     -- ユーザーID
-    role VARCHAR(50) NOT NULL          -- ロール（owner/manager/staff）
+    user_id VARCHAR(100) NOT NULL     -- ユーザーID
 );
 ```
 
@@ -358,7 +356,6 @@ erDiagram
         VARCHAR id PK
         VARCHAR system_id FK
         VARCHAR user_id FK
-        VARCHAR role
     }
 
     aws_account {
@@ -377,7 +374,6 @@ erDiagram
         VARCHAR id PK
         VARCHAR aws_account_id FK
         VARCHAR user_id FK
-        VARCHAR role
     }
 
     user_info ||--o{ system_user_relation : "has"
