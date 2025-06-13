@@ -1,27 +1,22 @@
 import { getCurrentUserId } from "@/lib/auth";
-import { useEffect, useState } from "react";
 
-export default function UserInfo() {
-  const [userId, setUserId] = useState<string>("");
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-    setUserId(getCurrentUserId());
-  }, []);
-
-  if (!isClient) {
-    return <div>Loading...</div>;
-  }
+const UserInfo = () => {
+  const userId = getCurrentUserId();
 
   return (
-    <div>
-      <h2>ユーザー情報</h2>
-      <div>
-        <p>
-          <span>ユーザーID:</span> {userId}
-        </p>
-      </div>
+    <div
+      style={{
+        backgroundColor: "#f8f9fa",
+        border: "1px solid #dee2e6",
+        borderRadius: "4px",
+        padding: "12px",
+        marginBottom: "20px",
+        fontSize: "14px",
+      }}
+    >
+      <strong>現在のユーザー:</strong> {userId}
     </div>
   );
-}
+};
+
+export default UserInfo;

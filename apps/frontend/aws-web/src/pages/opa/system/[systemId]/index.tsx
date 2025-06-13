@@ -1,4 +1,5 @@
 import UserInfo from "@/components/UserInfo";
+import { useSystemAccess } from "@/hooks/useAccessControl";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 
@@ -11,15 +12,24 @@ interface AwsAccount {
   SystemID: string;
 }
 
-export default function SystemAwsAccounts() {
+export default function OPASystemAwsAccounts() {
   const router = useRouter();
   const { systemId } = router.query;
   const [accounts, setAccounts] = useState<AwsAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // システムアクセス権限をチェック
+  const {
+    hasAccess,
+    loading: accessLoading,
+    error: accessError,
+  } = useSystemAccess(systemId as string, "read", "opa");
+
   useEffect(() => {
     if (!systemId || typeof systemId !== "string") return;
+    if (accessLoading) return; // 権限チェック中は待機
+    if (!hasAccess) return; // アクセス権限がない場合は何もしない
 
     const fetchAwsAccounts = async () => {
       try {
@@ -46,7 +56,50 @@ export default function SystemAwsAccounts() {
     };
 
     fetchAwsAccounts();
-  }, [systemId]);
+  }, [systemId, hasAccess, accessLoading]);
+
+  // 権限チェック中の表示
+  if (accessLoading) {
+    return (
+      <>
+        <UserInfo />
+        <div>
+          <p>権限を確認中...</p>
+        </div>
+      </>
+    );
+  }
+
+  // アクセス権限がない場合の表示
+  if (!hasAccess) {
+    return (
+      <>
+        <UserInfo />
+        <div>
+          <h1>アクセス拒否</h1>
+          <p>このシステムにアクセスする権限がありません。</p>
+          {accessError && (
+            <div style={{ color: "red", margin: "10px 0" }}>
+              エラー: {accessError}
+            </div>
+          )}
+          <button
+            onClick={() => router.back()}
+            style={{
+              backgroundColor: "#6c757d",
+              color: "white",
+              border: "none",
+              padding: "8px 16px",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
+          >
+            戻る
+          </button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -61,7 +114,7 @@ export default function SystemAwsAccounts() {
               marginBottom: "10px",
             }}
           >
-            <h1>システム {systemId} のAWSアカウント一覧</h1>
+            <h1>システム {systemId} のAWSアカウント一覧 (OPA)</h1>
           </div>
           <p>このシステムに紐づくAWSアカウントを表示しています</p>
         </div>
