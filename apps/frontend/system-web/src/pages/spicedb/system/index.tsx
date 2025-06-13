@@ -1,3 +1,4 @@
+import SpiceDBTest from "@/components/SpiceDBTest";
 import UserInfo from "@/components/UserInfo";
 import { NextPage } from "next";
 import Link from "next/link";
@@ -49,8 +50,11 @@ const SpicedbSystemPage: NextPage = () => {
       <UserInfo />
       <div>
         <div>
-          <h1>OPA System List</h1>
+          <h1>SpiceDB System List</h1>
         </div>
+
+        {/* SpiceDBテストコンポーネント */}
+        <SpiceDBTest />
 
         {loading && <p>読み込み中...</p>}
 

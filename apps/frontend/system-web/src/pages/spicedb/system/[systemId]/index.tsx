@@ -1,3 +1,7 @@
+import {
+  SpiceDBProtectedButton,
+  SpiceDBProtectedRoute,
+} from "@/components/SpiceDBProtectedRoute";
 import UserInfo from "@/components/UserInfo";
 import { NextPage } from "next";
 import Link from "next/link";
@@ -10,7 +14,7 @@ interface System {
   Note?: string;
 }
 
-const SystemDetailPage: NextPage = () => {
+const SpiceDBSystemDetailPage: NextPage = () => {
   const router = useRouter();
   const { systemId } = router.query;
   const [system, setSystem] = useState<System | null>(null);
@@ -49,57 +53,69 @@ const SystemDetailPage: NextPage = () => {
     fetchSystem();
   }, [systemId]);
 
+  // systemIdが取得できるまで何も表示しない
+  if (!systemId || Array.isArray(systemId)) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <>
       <UserInfo />
-      <div>
-        <div style={{ marginBottom: "20px" }}>
-          <Link href="/spicedb/system">
-            <button
-              style={{
-                backgroundColor: "#6c757d",
-                color: "white",
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "14px",
-                marginRight: "10px",
-              }}
-            >
-              ← 一覧に戻る
-            </button>
-          </Link>
-          <h1>システム詳細</h1>
-        </div>
+      <SpiceDBProtectedRoute resource={`system:${systemId}`} permission="read">
+        <div>
+          <div style={{ marginBottom: "20px" }}>
+            <Link href="/spicedb/system">
+              <button
+                style={{
+                  backgroundColor: "#6c757d",
+                  color: "white",
+                  border: "none",
+                  padding: "8px 16px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  marginRight: "10px",
+                }}
+              >
+                ← 一覧に戻る
+              </button>
+            </Link>
+            <h1>SpiceDB システム詳細</h1>
+          </div>
 
-        {loading && <p>読み込み中...</p>}
+          {loading && <p>読み込み中...</p>}
 
-        {error && (
-          <div style={{ color: "red", margin: "10px 0" }}>エラー: {error}</div>
-        )}
+          {error && (
+            <div style={{ color: "red", margin: "10px 0" }}>
+              エラー: {error}
+            </div>
+          )}
 
-        {!loading && !error && system && (
-          <div
-            style={{
-              border: "1px solid #ddd",
-              borderRadius: "8px",
-              padding: "24px",
-              backgroundColor: "#f9f9f9",
-            }}
-          >
+          {!loading && !error && system && (
             <div
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "16px",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+                padding: "24px",
+                backgroundColor: "#f9f9f9",
               }}
             >
-              <h2>{system.Name}</h2>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <Link href={`/spicedb/system/${system.ID}/member`}>
-                  <button
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "16px",
+                }}
+              >
+                <h2>{system.Name}</h2>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <SpiceDBProtectedButton
+                    resource={`system:${system.ID}`}
+                    permission="read"
+                    onClick={() =>
+                      router.push(`/spicedb/system/${system.ID}/member`)
+                    }
                     style={{
                       backgroundColor: "#007bff",
                       color: "white",
@@ -109,18 +125,15 @@ const SystemDetailPage: NextPage = () => {
                       cursor: "pointer",
                       fontSize: "14px",
                     }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = "#0056b3";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = "#007bff";
-                    }}
                   >
                     メンバー一覧
-                  </button>
-                </Link>
-                <Link href={`/spicedb/system/${system.ID}/edit`}>
-                  <button
+                  </SpiceDBProtectedButton>
+                  <SpiceDBProtectedButton
+                    resource={`system:${system.ID}`}
+                    permission="write"
+                    onClick={() =>
+                      router.push(`/spicedb/system/${system.ID}/edit`)
+                    }
                     style={{
                       backgroundColor: "#28a745",
                       color: "white",
@@ -130,39 +143,33 @@ const SystemDetailPage: NextPage = () => {
                       cursor: "pointer",
                       fontSize: "14px",
                     }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = "#218838";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = "#28a745";
-                    }}
                   >
                     編集
-                  </button>
-                </Link>
+                  </SpiceDBProtectedButton>
+                </div>
+              </div>
+              <div style={{ margin: "16px 0" }}>
+                <p>
+                  <strong>ID:</strong> {system.ID}
+                </p>
+                {system.Note && (
+                  <p>
+                    <strong>説明:</strong> {system.Note}
+                  </p>
+                )}
               </div>
             </div>
-            <div style={{ margin: "16px 0" }}>
-              <p>
-                <strong>ID:</strong> {system.ID}
-              </p>
-              {system.Note && (
-                <p>
-                  <strong>説明:</strong> {system.Note}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+          )}
 
-        {!loading && !error && !system && (
-          <div>
-            <p>システムが見つかりませんでした。</p>
-          </div>
-        )}
-      </div>
+          {!loading && !error && !system && (
+            <div>
+              <p>システムが見つかりませんでした。</p>
+            </div>
+          )}
+        </div>
+      </SpiceDBProtectedRoute>
     </>
   );
 };
 
-export default SystemDetailPage;
+export default SpiceDBSystemDetailPage;
