@@ -1,0 +1,69 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+// Casbin ServiceのURLを環境変数から取得（デフォルト値付き）
+var casbinServiceURL = func() string {
+	if url := os.Getenv("CASBIN_SERVICE_URL"); url != "" {
+		return url
+	}
+	return "http://casbin-server:8080"
+}()
+
+// Casbin 認可用の構造体
+type AuthRequest struct {
+	Subject string `json:"subject"`
+	Object  string `json:"object"`
+	Action  string `json:"action"`
+}
+
+type AuthResponse struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+// Casbinサービスで認可チェックを行う関数
+func checkAuthorization(subject, object, action string) (bool, error) {
+	authReq := AuthRequest{
+		Subject: subject,
+		Object:  object,
+		Action:  action,
+	}
+
+	jsonData, err := json.Marshal(authReq)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal auth request: %w", err)
+	}
+
+	// Casbinサービスに認可リクエストを送信
+	resp, err := http.Post(casbinServiceURL+"/authorize", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return false, fmt.Errorf("failed to call casbin service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("casbin service returned status: %d", resp.StatusCode)
+	}
+
+	// レスポンスを読み取り
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// JSONをパース
+	var authResp AuthResponse
+	if err := json.Unmarshal(body, &authResp); err != nil {
+		return false, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return authResp.Allowed, nil
+} 

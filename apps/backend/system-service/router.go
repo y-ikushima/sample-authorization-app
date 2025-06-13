@@ -2,49 +2,13 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"system-service/db/sqlc"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
-
-// User Service のレスポンス構造体
-type UserInfo struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
-}
-
-type BatchUsersRequest struct {
-	UserIDs []string `json:"user_ids"`
-}
-
-type SystemUserInfo struct {
-	UserID    string `json:"user_id"`
-	UserName  string `json:"user_name"`
-	UserEmail string `json:"user_email"`
-	SystemID  string `json:"system_id"`
-}
-
-// システム更新用のリクエスト構造体
-type UpdateSystemRequest struct {
-	Name string `json:"Name" binding:"required"`
-	Note string `json:"Note"`
-}
-
-// User ServiceのURLを環境変数から取得（デフォルト値付き）
-var userServiceURL = func() string {
-	if url := os.Getenv("USER_SERVICE_URL"); url != "" {
-		return url
-	}
-	return "http://user-service:3003/api"
-}()
 
 func setupRouter(queries *sqlc.Queries) *gin.Engine {
 	// Ginを設定
@@ -69,7 +33,7 @@ func setupRouter(queries *sqlc.Queries) *gin.Engine {
 			"status": "UP",
 		})
 	})
-	setupRoutes(r.Group("/api/casbin"), queries)
+	setupCasbinRoutes(r.Group("/api/casbin"), queries)
 	setupRoutes(r.Group("/api/opa"), queries)
 	setupRoutes(r.Group("/api/spicedb"), queries)
 
@@ -183,47 +147,4 @@ func  setupRoutes(api *gin.RouterGroup,queries *sqlc.Queries) {
 		
 		c.JSON(http.StatusOK, updatedSystem)
 	})
-}
-
-
-
-// User Serviceからユーザー情報を一括取得する関数
-func fetchUsersFromUserService(userIDs []string) ([]UserInfo, error) {
-	// User ServiceのURL（環境変数から取得）
-	url := userServiceURL + "/users/batch"
-	
-	// リクエストボディを作成
-	requestBody := BatchUsersRequest{
-		UserIDs: userIDs,
-	}
-	
-	jsonData, err := json.Marshal(requestBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-	
-	// HTTP POSTリクエストを送信
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to call user service: %w", err)
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("user service returned status: %d", resp.StatusCode)
-	}
-	
-	// レスポンスを読み取り
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-	
-	// JSONをパース
-	var users []UserInfo
-	if err := json.Unmarshal(body, &users); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-	
-	return users, nil
 }

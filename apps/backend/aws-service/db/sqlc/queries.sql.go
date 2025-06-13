@@ -63,7 +63,7 @@ func (q *Queries) GetAwsAccountBySystemId(ctx context.Context, systemID string) 
 }
 
 const getAwsAccountUsersByAwsAccountId = `-- name: GetAwsAccountUsersByAwsAccountId :many
-SELECT t1.id, name, note, t2.id, aws_account_id, user_id, role FROM aws_account t1 left join aws_account_user_relation t2 on t1.id = t2.aws_account_id where t2.aws_account_id = $1
+SELECT t1.id, name, note, t2.id, aws_account_id, user_id FROM aws_account t1 left join aws_account_user_relation t2 on t1.id = t2.aws_account_id where t2.aws_account_id = $1
 `
 
 type GetAwsAccountUsersByAwsAccountIdRow struct {
@@ -73,7 +73,6 @@ type GetAwsAccountUsersByAwsAccountIdRow struct {
 	ID_2         pgtype.Text
 	AwsAccountID pgtype.Text
 	UserID       pgtype.Text
-	Role         pgtype.Text
 }
 
 func (q *Queries) GetAwsAccountUsersByAwsAccountId(ctx context.Context, awsAccountID string) ([]GetAwsAccountUsersByAwsAccountIdRow, error) {
@@ -92,7 +91,6 @@ func (q *Queries) GetAwsAccountUsersByAwsAccountId(ctx context.Context, awsAccou
 			&i.ID_2,
 			&i.AwsAccountID,
 			&i.UserID,
-			&i.Role,
 		); err != nil {
 			return nil, err
 		}
