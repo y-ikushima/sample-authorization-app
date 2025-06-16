@@ -30,6 +30,17 @@ type PolicyRequest struct {
 	Policy []string `json:"policy"`
 }
 
+// ロール管理用の構造体を追加
+type RoleRequest struct {
+	User string `json:"user"`
+	Role string `json:"role"`
+}
+
+type UserRolesResponse struct {
+	User  string   `json:"user"`
+	Roles []string `json:"roles"`
+}
+
 var enforcer *casbin.Enforcer
 
 // PostgreSQL接続関数
@@ -169,6 +180,14 @@ func main() {
 	router.HandleFunc("/groups", optionsHandler).Methods("OPTIONS")
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/health", optionsHandler).Methods("OPTIONS")
+
+	// ロール管理エンドポイントを追加
+	router.HandleFunc("/user-roles", getUserRolesHandler).Methods("GET")
+	router.HandleFunc("/user-roles", optionsHandler).Methods("OPTIONS")
+	router.HandleFunc("/add-role", addRoleHandler).Methods("POST")
+	router.HandleFunc("/add-role", optionsHandler).Methods("OPTIONS")
+	router.HandleFunc("/remove-role", removeRoleHandler).Methods("POST")
+	router.HandleFunc("/remove-role", optionsHandler).Methods("OPTIONS")
 
 	// CORS対応
 	corsHandler := enableCORS(router)
@@ -384,4 +403,97 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 func optionsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
+}
+
+// ユーザのロール一覧を取得するハンドラ
+func getUserRolesHandler(w http.ResponseWriter, r *http.Request) {
+	// クエリパラメータからユーザーIDを取得
+	user := r.URL.Query().Get("user")
+	if user == "" {
+		http.Error(w, "User parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Printf("Getting roles for user: %s\n", user)
+
+	roles, err := enforcer.GetRolesForUser(user)
+	if err != nil {
+		fmt.Printf("Error getting roles for user %s: %v\n", user, err)
+		http.Error(w, "Failed to get user roles", http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Printf("User %s has roles: %v\n", user, roles)
+
+	response := UserRolesResponse{
+		User:  user,
+		Roles: roles,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// ユーザにロールを追加するハンドラ
+func addRoleHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var roleReq RoleRequest
+	if err := json.NewDecoder(r.Body).Decode(&roleReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if roleReq.User == "" || roleReq.Role == "" {
+		http.Error(w, "Both user and role are required", http.StatusBadRequest)
+		return
+	}
+
+	added, err := enforcer.AddRoleForUser(roleReq.User, roleReq.Role)
+	if err != nil {
+		http.Error(w, "Failed to add role", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"added": added,
+		"user":  roleReq.User,
+		"role":  roleReq.Role,
+	})
+}
+
+// ユーザからロールを削除するハンドラ
+func removeRoleHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var roleReq RoleRequest
+	if err := json.NewDecoder(r.Body).Decode(&roleReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if roleReq.User == "" || roleReq.Role == "" {
+		http.Error(w, "Both user and role are required", http.StatusBadRequest)
+		return
+	}
+
+	removed, err := enforcer.DeleteRoleForUser(roleReq.User, roleReq.Role)
+	if err != nil {
+		http.Error(w, "Failed to remove role", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"removed": removed,
+		"user":    roleReq.User,
+		"role":    roleReq.Role,
+	})
 } 

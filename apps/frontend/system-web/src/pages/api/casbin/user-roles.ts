@@ -11,36 +11,25 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // 色々なHTTPメソッドをサポート
-  if (!["POST", "GET"].includes(req.method || "")) {
+  if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
     console.log("Connecting to Casbin service at:", CASBIN_SERVICE_URL);
-    console.log("Request method:", req.method);
     console.log("Request query:", req.query);
-    console.log("Request body:", req.body);
 
-    let url = `${CASBIN_SERVICE_URL}/authorize`;
-    const requestInit: RequestInit = {
-      method: req.method,
+    const queryParams = new URLSearchParams(
+      req.query as Record<string, string>
+    );
+    const url = `${CASBIN_SERVICE_URL}/user-roles?${queryParams.toString()}`;
+
+    const response = await fetch(url, {
+      method: "GET",
       headers: {
         "Content-Type": "application/json",
       },
-    };
-
-    // GETの場合はクエリパラメータを付与、POSTの場合はボディを設定
-    if (req.method === "GET") {
-      const queryParams = new URLSearchParams(
-        req.query as Record<string, string>
-      );
-      url = `${CASBIN_SERVICE_URL}/authorize?${queryParams.toString()}`;
-    } else if (req.method === "POST") {
-      requestInit.body = JSON.stringify(req.body);
-    }
-
-    const response = await fetch(url, requestInit);
+    });
 
     console.log("Casbin response status:", response.status);
 

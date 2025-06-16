@@ -1,6 +1,7 @@
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import UserInfo from "@/components/UserInfo";
 import { getCurrentUserId } from "@/lib/auth";
+import { getUserRoles, updateUserRole } from "@/lib/casbin";
 import { NextPage } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -11,7 +12,32 @@ interface SystemUserInfo {
   user_name: string;
   user_email: string;
   system_id: string;
+  roles?: string[];
 }
+
+// 利用可能なロール一覧（システム管理者が設定可能）
+const getAvailableRoles = (systemId: string) => [
+  { value: "", label: "ロールなし" },
+  { value: `system_owner:${systemId}`, label: "システムオーナー" },
+  { value: `system_manager:${systemId}`, label: "システムマネージャー" },
+  { value: `system_staff:${systemId}`, label: "システムスタッフ" },
+  { value: "admin", label: "グローバル管理者" },
+  { value: "editor", label: "編集者" },
+  { value: "viewer", label: "閲覧者" },
+  { value: "operator", label: "操作者" },
+];
+
+// ロール表示名を取得する関数
+const getRoleDisplayName = (role: string, systemId: string): string => {
+  if (role === `system_owner:${systemId}`) return "システムオーナー";
+  if (role === `system_manager:${systemId}`) return "システムマネージャー";
+  if (role === `system_staff:${systemId}`) return "システムスタッフ";
+  if (role === "admin") return "グローバル管理者";
+  if (role === "editor") return "編集者";
+  if (role === "viewer") return "閲覧者";
+  if (role === "operator") return "操作者";
+  return role; // 未知のロールはそのまま表示
+};
 
 const SystemMemberPage: NextPage = () => {
   const router = useRouter();
@@ -20,6 +46,109 @@ const SystemMemberPage: NextPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [systemName, setSystemName] = useState<string>("");
+  const [rolesLoading, setRolesLoading] = useState<Record<string, boolean>>({});
+  const [roleUpdating, setRoleUpdating] = useState<Record<string, boolean>>({});
+
+  // ユーザのロールを取得する関数
+  const fetchUserRoles = async (userId: string): Promise<string[]> => {
+    try {
+      const roles = await getUserRoles(userId);
+      return roles;
+    } catch (error) {
+      console.error(`Failed to fetch roles for user ${userId}:`, error);
+      return [];
+    }
+  };
+
+  // 全ユーザのロールを一括取得する関数
+  const fetchAllUserRoles = async (userIds: string[]) => {
+    setRolesLoading((prev) => {
+      const newState = { ...prev };
+      userIds.forEach((id) => (newState[id] = true));
+      return newState;
+    });
+
+    try {
+      const rolePromises = userIds.map((userId) => fetchUserRoles(userId));
+      const roleResults = await Promise.all(rolePromises);
+
+      const rolesMap: Record<string, string[]> = {};
+      userIds.forEach((userId, index) => {
+        rolesMap[userId] = roleResults[index];
+      });
+
+      // メンバー情報を更新
+      setMembers((prevMembers) =>
+        prevMembers.map((member) => ({
+          ...member,
+          roles: rolesMap[member.user_id] || [],
+        }))
+      );
+    } catch (error) {
+      console.error("Failed to fetch user roles:", error);
+    } finally {
+      setRolesLoading((prev) => {
+        const newState = { ...prev };
+        userIds.forEach((id) => (newState[id] = false));
+        return newState;
+      });
+    }
+  };
+
+  // ユーザのロールを更新する関数
+  const handleRoleUpdate = async (userId: string, newRole: string) => {
+    const member = members.find((m) => m.user_id === userId);
+    if (!member) return;
+
+    // システム関連のロールのみ更新対象とする（グローバル管理者ロール等は保持）
+    const currentSystemRole =
+      member.roles?.find(
+        (role) =>
+          role.startsWith(`system_owner:${systemId}`) ||
+          role.startsWith(`system_manager:${systemId}`) ||
+          role.startsWith(`system_staff:${systemId}`)
+      ) || "";
+
+    // 同じロールの場合は何もしない
+    if (currentSystemRole === newRole) return;
+
+    setRoleUpdating((prev) => ({ ...prev, [userId]: true }));
+
+    try {
+      const success = await updateUserRole(userId, currentSystemRole, newRole);
+
+      if (success) {
+        // 成功時はローカルステートを更新
+        setMembers((prevMembers) =>
+          prevMembers.map((m) => {
+            if (m.user_id === userId) {
+              // 既存のロールからシステム固有のロールを除去し、新しいロールを追加
+              const otherRoles = (m.roles || []).filter(
+                (role) =>
+                  !role.startsWith(`system_owner:${systemId}`) &&
+                  !role.startsWith(`system_manager:${systemId}`) &&
+                  !role.startsWith(`system_staff:${systemId}`)
+              );
+              const newRoles = newRole ? [...otherRoles, newRole] : otherRoles;
+              return { ...m, roles: newRoles };
+            }
+            return m;
+          })
+        );
+        console.log(
+          `Successfully updated role for user ${userId}: ${currentSystemRole} -> ${newRole}`
+        );
+      } else {
+        console.error(`Failed to update role for user ${userId}`);
+        alert("ロールの更新に失敗しました。もう一度お試しください。");
+      }
+    } catch (error) {
+      console.error("Role update error:", error);
+      alert("ロールの更新中にエラーが発生しました。");
+    } finally {
+      setRoleUpdating((prev) => ({ ...prev, [userId]: false }));
+    }
+  };
 
   useEffect(() => {
     if (!systemId) return;
@@ -62,6 +191,14 @@ const SystemMemberPage: NextPage = () => {
         const membersData = await membersResponse.json();
         setMembers(membersData);
         setError(null);
+
+        // メンバー取得後、各ユーザのロールを取得
+        const userIds = membersData.map(
+          (member: SystemUserInfo) => member.user_id
+        );
+        if (userIds.length > 0) {
+          await fetchAllUserRoles(userIds);
+        }
       } catch (err) {
         console.error("メンバー一覧の取得に失敗しました:", err);
         setError(
@@ -81,6 +218,8 @@ const SystemMemberPage: NextPage = () => {
   if (!systemId || Array.isArray(systemId)) {
     return <div>Loading...</div>;
   }
+
+  const availableRoles = getAvailableRoles(systemId as string);
 
   return (
     <>
@@ -131,55 +270,137 @@ const SystemMemberPage: NextPage = () => {
                     marginTop: "20px",
                   }}
                 >
-                  {members.map((member, index) => (
-                    <div
-                      key={`${member.user_id}-${index}`}
-                      style={{
-                        border: "1px solid #ddd",
-                        borderRadius: "8px",
-                        padding: "20px",
-                        backgroundColor: "#ffffff",
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                      }}
-                    >
-                      <div style={{ marginBottom: "12px" }}>
-                        <h3
-                          style={{
-                            margin: "0 0 8px 0",
-                            color: "#333",
-                            fontSize: "18px",
-                          }}
-                        >
-                          {member.user_name}
-                        </h3>
-                        <p
-                          style={{
-                            margin: "0",
-                            color: "#666",
-                            fontSize: "14px",
-                          }}
-                        >
-                          {member.user_email}
-                        </p>
-                      </div>
+                  {members.map((member, index) => {
+                    // このシステムに関連するロールを取得
+                    const systemRole =
+                      member.roles?.find(
+                        (role) =>
+                          role.startsWith(`system_owner:${systemId}`) ||
+                          role.startsWith(`system_manager:${systemId}`) ||
+                          role.startsWith(`system_staff:${systemId}`)
+                      ) || "";
+
+                    return (
                       <div
+                        key={`${member.user_id}-${index}`}
                         style={{
-                          borderTop: "1px solid #eee",
-                          paddingTop: "12px",
+                          border: "1px solid #ddd",
+                          borderRadius: "8px",
+                          padding: "20px",
+                          backgroundColor: "#ffffff",
+                          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                         }}
                       >
-                        <p
+                        <div style={{ marginBottom: "16px" }}>
+                          <h3
+                            style={{
+                              margin: "0 0 8px 0",
+                              color: "#333",
+                              fontSize: "18px",
+                            }}
+                          >
+                            {member.user_name}
+                          </h3>
+                          <p
+                            style={{
+                              margin: "0 0 8px 0",
+                              color: "#666",
+                              fontSize: "14px",
+                            }}
+                          >
+                            {member.user_email}
+                          </p>
+                          <p
+                            style={{
+                              margin: "0",
+                              fontSize: "12px",
+                              color: "#888",
+                            }}
+                          >
+                            <strong>ユーザーID:</strong> {member.user_id}
+                          </p>
+                        </div>
+
+                        {/* ロール管理セクション */}
+                        <div
                           style={{
-                            margin: "0",
-                            fontSize: "12px",
-                            color: "#888",
+                            borderTop: "1px solid #eee",
+                            paddingTop: "16px",
                           }}
                         >
-                          <strong>ユーザーID:</strong> {member.user_id}
-                        </p>
+                          <div style={{ marginBottom: "8px" }}>
+                            <strong style={{ fontSize: "14px", color: "#333" }}>
+                              システムロール:
+                            </strong>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "10px",
+                            }}
+                          >
+                            {rolesLoading[member.user_id] ? (
+                              <span style={{ fontSize: "12px", color: "#666" }}>
+                                ロール読み込み中...
+                              </span>
+                            ) : (
+                              <>
+                                <select
+                                  value={systemRole}
+                                  onChange={(e) =>
+                                    handleRoleUpdate(
+                                      member.user_id,
+                                      e.target.value
+                                    )
+                                  }
+                                  disabled={roleUpdating[member.user_id]}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: "4px",
+                                    border: "1px solid #ddd",
+                                    fontSize: "14px",
+                                    backgroundColor: roleUpdating[
+                                      member.user_id
+                                    ]
+                                      ? "#f8f9fa"
+                                      : "white",
+                                  }}
+                                >
+                                  {availableRoles.map((role) => (
+                                    <option key={role.value} value={role.value}>
+                                      {role.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                {roleUpdating[member.user_id] && (
+                                  <span
+                                    style={{ fontSize: "12px", color: "#666" }}
+                                  >
+                                    更新中...
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                          {member.roles && member.roles.length > 0 && (
+                            <div style={{ marginTop: "8px" }}>
+                              <span
+                                style={{ fontSize: "12px", color: "#28a745" }}
+                              >
+                                現在のロール:{" "}
+                                {member.roles
+                                  .map((role) =>
+                                    getRoleDisplayName(role, systemId as string)
+                                  )
+                                  .join(", ")}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -203,6 +424,7 @@ const SystemMemberPage: NextPage = () => {
                   }}
                 >
                   メンバーの追加・削除は管理者にお問い合わせください。
+                  システムロールの変更は上記のセレクトボックスから行えます。
                 </p>
                 <div style={{ display: "flex", gap: "10px" }}>
                   <button
