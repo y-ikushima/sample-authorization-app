@@ -29,6 +29,22 @@ type RelationshipRequest struct {
 	Subject  string `json:"subject"`
 }
 
+// ユーザのロール（リレーションシップ）取得用の構造体を追加
+type UserRolesRequest struct {
+	User     string `json:"user"`
+	Resource string `json:"resource,omitempty"` // オプション：特定のリソースに限定
+}
+
+type UserRolesResponse struct {
+	User          string               `json:"user"`
+	Relationships []UserRelationship   `json:"relationships"`
+}
+
+type UserRelationship struct {
+	Resource string `json:"resource"`
+	Relation string `json:"relation"`
+}
+
 // YAML設定ファイルの構造体
 type RelationshipConfig struct {
 	Relationships []Relationship `yaml:"relationships"`
@@ -87,6 +103,15 @@ func main() {
 	router.HandleFunc("/relationships", addRelationshipHandler).Methods("POST")
 	router.HandleFunc("/relationships", removeRelationshipHandler).Methods("DELETE")
 	router.HandleFunc("/relationships", optionsHandler).Methods("OPTIONS")
+	
+	// ユーザロール管理エンドポイントを追加
+	router.HandleFunc("/user-roles", getUserRolesHandler).Methods("GET", "POST")
+	router.HandleFunc("/user-roles", optionsHandler).Methods("OPTIONS")
+	router.HandleFunc("/add-user-role", addUserRoleHandler).Methods("POST")
+	router.HandleFunc("/add-user-role", optionsHandler).Methods("OPTIONS")
+	router.HandleFunc("/remove-user-role", removeUserRoleHandler).Methods("POST")
+	router.HandleFunc("/remove-user-role", optionsHandler).Methods("OPTIONS")
+	
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/health", optionsHandler).Methods("OPTIONS")
 
@@ -229,6 +254,151 @@ func removeRelationshipHandler(w http.ResponseWriter, r *http.Request) {
 		"removed":      removed,
 		"relationship": relReq,
 		"note":         "メモリから削除されました（再起動時に設定ファイルから再読み込みされます）",
+	})
+}
+
+// ユーザのロール（リレーションシップ）一覧を取得するハンドラ
+func getUserRolesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		// GETの場合：クエリパラメータからユーザーIDとリソースを取得
+		user := r.URL.Query().Get("user")
+		if user == "" {
+			http.Error(w, "User parameter is required", http.StatusBadRequest)
+			return
+		}
+		resource := r.URL.Query().Get("resource") // オプション
+
+		fmt.Printf("Getting roles for user: %s, resource: %s\n", user, resource)
+
+		relationships := getUserRelationships(user, resource)
+
+		response := UserRolesResponse{
+			User:          user,
+			Relationships: relationships,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+		
+	} else if r.Method == "POST" {
+		// POSTの場合：JSONボディから取得
+		var userRolesReq UserRolesRequest
+		if err := json.NewDecoder(r.Body).Decode(&userRolesReq); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if userRolesReq.User == "" {
+			http.Error(w, "User is required", http.StatusBadRequest)
+			return
+		}
+
+		fmt.Printf("Getting roles for user: %s, resource: %s\n", userRolesReq.User, userRolesReq.Resource)
+
+		relationships := getUserRelationships(userRolesReq.User, userRolesReq.Resource)
+
+		response := UserRolesResponse{
+			User:          userRolesReq.User,
+			Relationships: relationships,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// ユーザのリレーションシップを取得するヘルパー関数
+func getUserRelationships(user, resourceFilter string) []UserRelationship {
+	var userRelationships []UserRelationship
+	
+	// subjectが "user:" プレフィックス付きの場合は除去
+	cleanUser := strings.TrimPrefix(user, "user:")
+	
+	for _, rel := range relationships {
+		// subjectのマッチング
+		relSubject := strings.TrimPrefix(rel.Subject, "user:")
+		
+		if relSubject == cleanUser {
+			// リソースフィルターが指定されている場合はそれに一致するもののみ
+			if resourceFilter == "" || rel.Resource == resourceFilter {
+				userRelationships = append(userRelationships, UserRelationship{
+					Resource: rel.Resource,
+					Relation: rel.Relation,
+				})
+			}
+		}
+	}
+	
+	return userRelationships
+}
+
+// ユーザにロール（リレーションシップ）を追加するハンドラ
+func addUserRoleHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var relReq RelationshipRequest
+	if err := json.NewDecoder(r.Body).Decode(&relReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if relReq.Resource == "" || relReq.Relation == "" || relReq.Subject == "" {
+		http.Error(w, "Resource, relation, and subject are required", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Printf("Adding role: user=%s, resource=%s, relation=%s\n", relReq.Subject, relReq.Resource, relReq.Relation)
+
+	// 新しいリレーションシップをメモリに追加
+	newRel := Relationship(relReq)
+	relationships = append(relationships, newRel)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"added":        true,
+		"relationship": relReq,
+	})
+}
+
+// ユーザからロール（リレーションシップ）を削除するハンドラ
+func removeUserRoleHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var relReq RelationshipRequest
+	if err := json.NewDecoder(r.Body).Decode(&relReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if relReq.Resource == "" || relReq.Relation == "" || relReq.Subject == "" {
+		http.Error(w, "Resource, relation, and subject are required", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Printf("Removing role: user=%s, resource=%s, relation=%s\n", relReq.Subject, relReq.Resource, relReq.Relation)
+
+	// リレーションシップを削除
+	removed := false
+	for i, rel := range relationships {
+		if rel.Resource == relReq.Resource && rel.Relation == relReq.Relation && rel.Subject == relReq.Subject {
+			relationships = append(relationships[:i], relationships[i+1:]...)
+			removed = true
+			break
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"removed":      removed,
+		"relationship": relReq,
 	})
 }
 
