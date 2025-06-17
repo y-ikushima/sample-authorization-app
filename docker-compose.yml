@@ -139,6 +139,7 @@ services:
       - NODE_ENV=development
       - SPICEDB_SERVICE_URL=http://spicedb-server:8080
       - SPICEDB_AUTH_KEY=spicedb-secret-key
+      - OPA_SERVICE_URL=http://opa-server:8081
     depends_on:
       - aws-service
 
@@ -160,6 +161,7 @@ services:
       - NODE_ENV=development
       - SPICEDB_SERVICE_URL=http://spicedb-server:8080
       - SPICEDB_AUTH_KEY=spicedb-secret-key
+      - OPA_SERVICE_URL=http://opa-server:8081
     depends_on:
       - system-service
 
