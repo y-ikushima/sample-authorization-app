@@ -1,126 +1,182 @@
-# SpiceDB Authorization Server（公式イメージ版）
+# SpiceDB Authorization Service
 
-統一認可システムの SpiceDB 実装サーバーです。公式の`authzed/spicedb`イメージを使用して Zed スキーマファイルから権限管理を行います。
+SpiceDB を使用した認可サービス。
 
-## 機能
+## フォルダ構成
 
-- 🚀 **公式 SpiceDB イメージ使用**: 本格的な SpiceDB 機能をフル活用
-- 📋 **Zed スキーマファイル対応**: `schema.zed`からの権限定義読み込み
-- 🗄️ **PostgreSQL 統合**: データベースでの永続化（テーブル自動作成）
-- 🌐 **HTTP + gRPC API**: RESTful HTTP API と gRPC の両方に対応
-- ⚡ **自動初期化**: スキーマとリレーションシップの自動セットアップ
-- 📊 **YAML データ移行**: 既存の YAML 設定からのデータ投入
-
-## API エンドポイント
-
-### HTTP API（ポート 8082）
-
-- **認可チェック**: `POST /v1/permissions/check`
-- **リレーションシップ管理**: `POST /v1/relationships/write`
-- **スキーマ管理**: `POST /v1/schema/write`
-- **ヘルスチェック**: `GET /healthz`
-
-### gRPC API（ポート 50051）
-
-- SpiceDB 公式プロトコルバッファ API をフルサポート
-
-## 使用方法
-
-### Docker Compose（推奨）
-
-```bash
-# サービス起動
-docker-compose up spicedb-server
-
-# ログ確認
-docker-compose logs -f spicedb-server
+```
+authorization/spicedb/
+├── Dockerfile.dev      # SpiceDBサーバー（シンプル構成）
+├── schema.zed          # SpiceDBスキーマ定義
+├── relationships.yaml  # スキーマ + リレーション（Playground形式）
+└── README.md          # このファイル
 ```
 
-### HTTP API での認可チェック例
+## 使用方法（プロジェクトルートから実行）
+
+### 1. SpiceDB サーバー起動
 
 ```bash
-curl -X POST http://localhost:8082/v1/permissions/check \
-  -H "Authorization: Bearer spicedb-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "resource": {
-      "object_type": "system",
-      "object_id": "system1"
-    },
-    "permission": "read",
-    "subject": {
-      "object": {
-        "object_type": "user",
-        "object_id": "taro"
-      }
-    }
-  }'
+# プロジェクトルートで実行
+docker-compose up -d spicedb
 ```
 
-### zed コマンドラインツールでの操作
+### 2. スキーマとリレーション一括投入
 
 ```bash
-# コンテナ内でzedコマンドを実行
-docker exec -it spicedb-server zed --endpoint="localhost:50051" --token="spicedb-secret-key" --insecure relationship list
-
-# 新しいリレーションシップの作成
-docker exec -it spicedb-server zed --endpoint="localhost:50051" --token="spicedb-secret-key" --insecure \
-  relationship create system:system1 owner user:taro
+# relationships.yamlから一括投入（推奨）
+docker run --rm -i \
+  --network host \
+  -v "$(pwd)/authorization/spicedb:/work" \
+  authzed/zed \
+  --endpoint localhost:50051 \
+  --token spicedb-secret-key \
+  --insecure \
+  import /work/relationships.yaml
 ```
 
-## 環境変数
+## 個別操作（必要に応じて）
 
-| 変数名                       | デフォルト値          | 説明                 |
-| ---------------------------- | --------------------- | -------------------- |
-| `SPICEDB_GRPC_PRESHARED_KEY` | `spicedb-secret-key`  | 認証トークン         |
-| `SPICEDB_DATASTORE_ENGINE`   | `postgres`            | データストアエンジン |
-| `SPICEDB_DATASTORE_CONN_URI` | PostgreSQL 接続文字列 | データベース接続情報 |
+### スキーマのみ投入
 
-## ファイル構成
+```bash
+docker run --rm -i \
+  --network host \
+  -v "$(pwd)/authorization/spicedb:/work" \
+  authzed/zed \
+  --endpoint localhost:50051 \
+  --token spicedb-secret-key \
+  --insecure \
+  schema write /work/schema.zed
+```
 
-- `schema.zed` - SpiceDB スキーマ定義（Zed 言語）
-- `relationships.yaml` - 初期リレーションシップデータ
-- `init-spicedb.sh` - 初期化スクリプト
-- `Dockerfile.dev` - 開発用 Docker ファイル
+### リレーション個別作成
 
-## 初期化プロセス
+```bash
+docker run --rm -i \
+  --network host \
+  authzed/zed \
+  --endpoint localhost:50051 \
+  --token spicedb-secret-key \
+  --insecure \
+  relationship create global:main admin user:taro
+```
 
-1. **SpiceDB サーバー起動** - PostgreSQL に接続してテーブル自動作成
-2. **zed ツールインストール** - スキーマ管理用 CLI ツール準備
-3. **スキーマ書き込み** - `schema.zed`を SpiceDB に適用
-4. **リレーションシップ投入** - `relationships.yaml`からデータ読み込み
-5. **サーバー稼働** - HTTP/gRPC API サービス開始
+## 権限チェック
+
+```bash
+# グローバル管理者権限チェック
+docker run --rm -i \
+  --network host \
+  authzed/zed \
+  --endpoint localhost:50051 \
+  --token spicedb-secret-key \
+  --insecure \
+  permission check global:main full_access user:taro
+
+# システム管理者権限チェック
+docker run --rm -i \
+  --network host \
+  authzed/zed \
+  --endpoint localhost:50051 \
+  --token spicedb-secret-key \
+  --insecure \
+  permission check system:system1 admin user:jiro
+
+# 読み取り権限チェック
+docker run --rm -i \
+  --network host \
+  authzed/zed \
+  --endpoint localhost:50051 \
+  --token spicedb-secret-key \
+  --insecure \
+  permission check system:system1 read user:hanako
+```
+
+## データ確認
+
+```bash
+# 現在のリレーション一覧
+docker run --rm -i \
+  --network host \
+  authzed/zed \
+  --endpoint localhost:50051 \
+  --token spicedb-secret-key \
+  --insecure \
+  relationship read --limit 100
+
+# 現在のスキーマ表示
+docker run --rm -i \
+  --network host \
+  authzed/zed \
+  --endpoint localhost:50051 \
+  --token spicedb-secret-key \
+  --insecure \
+  schema read
+```
+
+## 権限構造
+
+### 定義されたリソース
+
+- **user**: 基本ユーザーエンティティ
+- **global**: グローバル権限
+- **system**: システムリソース
+- **aws**: AWS アカウントリソース
+- **user_management**: ユーザー管理リソース
+- **api**: API アクセスリソース
+
+### ロール階層
+
+| ロール  | 読取 | 書込 | 削除 | 管理 |
+| ------- | ---- | ---- | ---- | ---- |
+| Owner   | ✓    | ✓    | ✓    | ✓    |
+| Manager | ✓    | ✓    | ✓    | ✗    |
+| Staff   | ✓    | ✗    | ✗    | ✗    |
+
+### 投入済みリレーション
+
+- **taro**: グローバル管理者
+- **jiro**: system1, system2 の owner / aws1 の owner
+- **saburo**: system1, system3 の manager / aws1 の manager
+- **hanako**: system2, system3 の staff / aws1 の staff
+- **alice**: system4 の staff / aws2 の owner
+
+## エンドポイント
+
+- **gRPC**: `localhost:50051`
+- **HTTP**: `localhost:8080`
 
 ## トラブルシューティング
 
-### 初期化が失敗する場合
+### SpiceDB サーバーが起動しない
 
 ```bash
-# コンテナログを確認
-docker-compose logs spicedb-server
+# ログ確認
+docker-compose logs spicedb
 
-# データベース接続確認
-docker exec -it spicedb_postgres psql -U spicedb -d spicedb -c "\dt"
+# 手動起動テスト
+docker run --rm -p 50051:50051 -p 8080:8080 authzed/spicedb:v1.44.4 serve --help
 ```
 
-### 手動でのリレーションシップ確認
+### リレーション投入に失敗する
 
 ```bash
-# SpiceDB内のリレーションシップ一覧
-docker exec -it spicedb-server zed --endpoint="localhost:50051" --token="spicedb-secret-key" --insecure \
-  relationship list
+# SpiceDBサーバーの状態確認
+curl -s http://localhost:8080/healthz
+
+# 既存データとの競合確認
+docker run --rm -i \
+  --network host \
+  authzed/zed \
+  --endpoint localhost:50051 \
+  --token spicedb-secret-key \
+  --insecure \
+  schema read
 ```
 
-## 公式ドキュメント
+## 参考リンク
 
 - [SpiceDB 公式ドキュメント](https://authzed.com/docs)
-- [Zed CLI リファレンス](https://authzed.com/docs/spicedb/installing-zed)
-- [HTTP API リファレンス](https://authzed.com/docs/reference/api)
-
-## メリット
-
-✅ **完全な SpiceDB 機能**: 公式実装による全機能利用  
-✅ **自動テーブル管理**: データベーススキーマの自動作成・管理  
-✅ **最適化済み**: プロダクション対応の最適化されたパフォーマンス  
-✅ **標準準拠**: Google Zanzibar 仕様に完全準拠  
-✅ **豊富な API**: HTTP + gRPC での柔軟な統合
+- [authzed/zed CLI](https://github.com/authzed/zed)
+- [SpiceDB Playground](https://play.authzed.com)

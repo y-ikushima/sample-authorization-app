@@ -1,72 +1,183 @@
-# SpiceDB リレーションシップ定義
-# README.mdの権限マトリックスと権限の独立性の例に基づく設定
+# SpiceDB Playground形式のYAMLファイル
+# zed import コマンドで読み込み可能
 
-relationships:
-  # グローバル管理者設定（Admin - フルアクセス）
-  - resource: "global:main"
-    relation: "admin"
-    subject: "user:taro"
+schema: |-
+  // ==============================================================================
+  // SpiceDB Authorization Schema
+  // 統一認可システムのスキーマ定義
+  // ==============================================================================
+  //
+  // このスキーマは以下の認可システムで統一された認可モデルを提供します:
+  // - Casbin
+  // - OPA (Open Policy Agent)  
+  // - SpiceDB
+  //
+  // ==============================================================================
+  // User Permission Structure (ユーザー権限構造)
+  // ==============================================================================
+  //
+  // Global Permissions:
+  // - taro: グローバルadmin
+  //
+  // System Permissions:
+  // - jiro: system1, system2のowner
+  // - saburo: system1, system3のmanager  
+  // - hanako: system2, system3のstaff
+  // - alice: system4のstaff
+  //
+  // AWS Account Permissions:
+  // - jiro: aws1のowner
+  // - saburo: aws1のmanager
+  // - hanako: aws1のstaff
+  // - alice: aws2のowner
+  //
+  // ==============================================================================
+  // Permission Matrix (権限マトリックス)
+  // ==============================================================================
+  //
+  // Role         | Read | Write | Delete | Admin
+  // -------------|------|-------|--------|-------
+  // Admin/Owner  |  ✓   |   ✓   |   ✓    |   ✓
+  // Manager      |  ✓   |   ✓   |   ✓    |   ✗
+  // Staff        |  ✓   |   ✗   |   ✗    |   ✗
+  //
+  // ==============================================================================
 
-  # システムリソースの権限設定（ユーザは複数のシステムに所属可能）
-  # jiro - system1とsystem2のオーナー
-  - resource: "system:system1"
-    relation: "owner"
-    subject: "user:jiro"
+  // ------------------------------------------------------------------------------
+  // Core Definitions
+  // ------------------------------------------------------------------------------
 
-  - resource: "system:system2"
-    relation: "owner"
-    subject: "user:jiro"
+  /** 
+   * User Definition
+   * 基本的なユーザーエンティティ
+   */
+  definition user {}
 
-  # saburo - system1とsystem3のマネージャー
-  - resource: "system:system1"
-    relation: "manager"
-    subject: "user:saburo"
+  // ------------------------------------------------------------------------------
+  // System Resources
+  // ------------------------------------------------------------------------------
 
-  - resource: "system:system3"
-    relation: "manager"
-    subject: "user:saburo"
+  /**
+   * System Resource Definition
+   * システムリソース定義（複数システムに所属可能）
+   */
+  definition system {
+      // Role Relations
+      relation owner: user
+      relation manager: user  
+      relation staff: user
+      
+      // Permission Definitions
+      permission read = owner + manager + staff
+      permission write = owner + manager
+      permission delete = owner + manager
+      permission admin = owner
+      permission manage_members = owner + manager
+  }
 
-  # hanako - system2とsystem3のスタッフ
-  - resource: "system:system2"
-    relation: "staff"
-    subject: "user:hanako"
+  // ------------------------------------------------------------------------------
+  // AWS Resources
+  // ------------------------------------------------------------------------------
 
-  - resource: "system:system3"
-    relation: "staff"
-    subject: "user:hanako"
+  /**
+   * AWS Account Resource Definition  
+   * AWSアカウントリソース定義（システム権限とは独立）
+   */
+  definition aws {
+      // Role Relations
+      relation owner: user
+      relation manager: user
+      relation staff: user
+      
+      // Permission Definitions
+      permission read = owner + manager + staff
+      permission write = owner
+      permission delete = owner
+      permission admin = owner
+      permission manage_members = owner + manager
+  }
 
-  # alice - system4のスタッフ
-  - resource: "system:system4"
-    relation: "staff"
-    subject: "user:alice"
+  // ------------------------------------------------------------------------------
+  // User Management Resources
+  // ------------------------------------------------------------------------------
 
-  # AWSの権限設定（システム権限とは完全に独立）
-  # 例：sabuроはsystem1のマネージャーだが、aws1ではマネージャー権限（読取のみ）
-  # jiro - aws1のオーナー
-  - resource: "aws:aws1"
-    relation: "owner"
-    subject: "user:jiro"
+  /**
+   * User Management Resource Definition
+   * ユーザー管理リソース定義
+   */
+  definition user_management {
+      // Role Relations
+      relation admin: user
+      relation viewer: user
+      
+      // Permission Definitions
+      permission read = admin + viewer
+      permission write = admin
+      permission delete = admin
+      permission administrate = admin
+  }
 
-  # saburo - aws1のマネージャー（システム権限とは独立）
-  - resource: "aws:aws1"
-    relation: "manager"
-    subject: "user:saburo"
+  // ------------------------------------------------------------------------------
+  // API Resources
+  // ------------------------------------------------------------------------------
 
-  # hanako - aws1のスタッフ（システム権限とは独立）
-  - resource: "aws:aws1"
-    relation: "staff"
-    subject: "user:hanako"
+  /**
+   * API Access Resource Definition
+   * APIアクセスリソース定義
+   */
+  definition api {
+      // Role Relations
+      relation user: user
+      
+      // Permission Definitions
+      permission access = user
+  }
 
-  # alice - aws2のオーナー（システム権限とは独立）
-  - resource: "aws:aws2"
-    relation: "owner"
-    subject: "user:alice"
+  // ------------------------------------------------------------------------------
+  // Global Resources
+  // ------------------------------------------------------------------------------
 
-  # AWSとシステムの関係設定（所属関係のみ、権限には影響しない）
-  - resource: "aws:aws1"
-    relation: "system"
-    subject: "system:system1"
+  /**
+   * Global Permission Definition
+   * グローバル権限定義
+   */
+  definition global {
+      // Global Administrator Role
+      relation admin: user
+      
+      // Global Permissions
+      permission full_access = admin
+  }
 
-  - resource: "aws:aws2"
-    relation: "system"
-    subject: "system:system2"
+relationships: |-
+  // グローバル管理者設定（Admin - フルアクセス）
+  global:main#admin@user:taro
+
+  // システムリソースの権限設定（ユーザは複数のシステムに所属可能）
+  // jiro - system1とsystem2のオーナー
+  system:system1#owner@user:jiro
+  system:system2#owner@user:jiro
+
+  // saburo - system1とsystem3のマネージャー
+  system:system1#manager@user:saburo
+  system:system3#manager@user:saburo
+
+  // hanako - system2とsystem3のスタッフ
+  system:system2#staff@user:hanako
+  system:system3#staff@user:hanako
+
+  // alice - system4のスタッフ
+  system:system4#staff@user:alice
+
+  // AWSの権限設定（システム権限とは完全に独立）
+  // jiro - aws1のオーナー
+  aws:aws1#owner@user:jiro
+
+  // saburo - aws1のマネージャー（システム権限とは独立）
+  aws:aws1#manager@user:saburo
+
+  // hanako - aws1のスタッフ（システム権限とは独立）
+  aws:aws1#staff@user:hanako
+
+  // alice - aws2のオーナー（システム権限とは独立）
+  aws:aws2#owner@user:alice

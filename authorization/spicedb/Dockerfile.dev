@@ -4,14 +4,10 @@ FROM authzed/spicedb:v1.44.4
 # 作業ディレクトリを設定
 WORKDIR /app
 
-# 設定ファイルをコピー
-COPY schema.zed ./schema.zed
-COPY relationships.yaml ./relationships.yaml
-
 # SpiceDBサーバーの起動
 EXPOSE 8080 50051
 
-# serveサブコマンドから開始（エントリーポイントはすでにspicedb）
+# serveサブコマンドから開始
 CMD [ \
   "serve", \
   "--grpc-preshared-key", "spicedb-secret-key", \
