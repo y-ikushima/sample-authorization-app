@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -56,14 +58,22 @@ type Relationship struct {
 	Subject  string `yaml:"subject"`
 }
 
-// 権限マッピング（relation -> permissions）
-var permissionMap = map[string][]string{
-	"admin":      {"read", "write", "delete", "admin", "manage_members"},
-	"admin_user": {"read", "write", "delete", "admin", "manage_members"},
-	"owner":      {"read", "write", "delete", "admin", "manage_members"},
-	"manager":    {"read", "write", "delete"},
-	"staff":      {"read"},
+// Zedスキーマ定義の構造体
+type ZedSchema struct {
+	Definitions map[string]*Definition
 }
+
+type Definition struct {
+	Name        string
+	Relations   map[string]string // relation name -> subject type
+	Permissions map[string]string // permission name -> expression
+}
+
+// 権限マッピング（relation -> permissions）- Zedスキーマから動的に構築
+var permissionMap = map[string][]string{}
+
+// Zedスキーマから読み込まれた定義
+var zedSchema *ZedSchema
 
 // 実行時に設定ファイルから読み込まれるリレーションシップ
 var relationships []Relationship
@@ -89,10 +99,18 @@ func enableCORS(next http.Handler) http.Handler {
 func main() {
 	fmt.Println("Initializing SpiceDB Authorization Server...")
 
+	// Zedスキーマファイルの読み込み
+	if err := loadZedSchema(); err != nil {
+		log.Fatal("Failed to load Zed schema:", err)
+	}
+
 	// 設定ファイルの読み込み
 	if err := loadRelationships(); err != nil {
 		log.Fatal("Failed to load relationships:", err)
 	}
+
+	// Zedスキーマから権限マッピングを構築
+	buildPermissionMap()
 
 	router := mux.NewRouter()
 
@@ -112,6 +130,10 @@ func main() {
 	router.HandleFunc("/remove-user-role", removeUserRoleHandler).Methods("POST")
 	router.HandleFunc("/remove-user-role", optionsHandler).Methods("OPTIONS")
 	
+	// Zedスキーマ情報エンドポイントを追加
+	router.HandleFunc("/schema", getSchemaHandler).Methods("GET")
+	router.HandleFunc("/schema", optionsHandler).Methods("OPTIONS")
+	
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/health", optionsHandler).Methods("OPTIONS")
 
@@ -124,8 +146,119 @@ func main() {
 	}
 
 	fmt.Printf("SpiceDB Authorization Server starting on port %s\n", port)
+	fmt.Printf("Loaded %d definitions from Zed schema\n", len(zedSchema.Definitions))
 	fmt.Printf("Loaded %d relationships from config file\n", len(relationships))
 	log.Fatal(http.ListenAndServe(":"+port, corsHandler))
+}
+
+// Zedスキーマファイルを読み込み、解析する
+func loadZedSchema() error {
+	// スキーマファイルのパス
+	schemaPath := "./schema.zed"
+	if _, err := os.Stat("/app/schema.zed"); err == nil {
+		schemaPath = "/app/schema.zed" // Docker環境用
+	}
+
+	file, err := os.Open(schemaPath)
+	if err != nil {
+		return fmt.Errorf("failed to open schema file: %v", err)
+	}
+	defer file.Close()
+
+	zedSchema = &ZedSchema{
+		Definitions: make(map[string]*Definition),
+	}
+
+	scanner := bufio.NewScanner(file)
+	var currentDefinition *Definition
+	
+	// 正規表現パターン
+	definitionPattern := regexp.MustCompile(`^definition\s+(\w+)\s*\{`)
+	relationPattern := regexp.MustCompile(`^\s*relation\s+(\w+):\s*(\w+)`)
+	permissionPattern := regexp.MustCompile(`^\s*permission\s+(\w+)\s*=\s*(.+)`)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		
+		// コメントと空行をスキップ
+		if strings.HasPrefix(line, "//") || strings.HasPrefix(line, "/*") || strings.HasPrefix(line, "*") || line == "" {
+			continue
+		}
+
+		// definition の開始
+		if matches := definitionPattern.FindStringSubmatch(line); matches != nil {
+			defName := matches[1]
+			currentDefinition = &Definition{
+				Name:        defName,
+				Relations:   make(map[string]string),
+				Permissions: make(map[string]string),
+			}
+			zedSchema.Definitions[defName] = currentDefinition
+			continue
+		}
+
+		// relation の定義
+		if currentDefinition != nil {
+			if matches := relationPattern.FindStringSubmatch(line); matches != nil {
+				relationName := matches[1]
+				subjectType := matches[2]
+				currentDefinition.Relations[relationName] = subjectType
+				continue
+			}
+
+			// permission の定義
+			if matches := permissionPattern.FindStringSubmatch(line); matches != nil {
+				permissionName := matches[1]
+				expression := strings.TrimSpace(matches[2])
+				currentDefinition.Permissions[permissionName] = expression
+				continue
+			}
+		}
+
+		// definition の終了
+		if line == "}" {
+			currentDefinition = nil
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading schema file: %v", err)
+	}
+
+	fmt.Printf("Parsed Zed schema: %d definitions loaded\n", len(zedSchema.Definitions))
+	for defName, def := range zedSchema.Definitions {
+		fmt.Printf("  - %s: %d relations, %d permissions\n", defName, len(def.Relations), len(def.Permissions))
+	}
+
+	return nil
+}
+
+// Zedスキーマから権限マッピングを構築
+func buildPermissionMap() {
+	permissionMap = make(map[string][]string)
+	
+	// 各定義から権限を抽出
+	for _, def := range zedSchema.Definitions {
+		for relationName := range def.Relations {
+			var permissions []string
+			
+			// 各権限定義をチェックして、このrelationが含まれているかを確認
+			for permName, expression := range def.Permissions {
+				if strings.Contains(expression, relationName) {
+					permissions = append(permissions, permName)
+				}
+			}
+			
+			if len(permissions) > 0 {
+				permissionMap[relationName] = permissions
+			}
+		}
+	}
+	
+	fmt.Printf("Built permission map from Zed schema:\n")
+	for relation, perms := range permissionMap {
+		fmt.Printf("  - %s: %v\n", relation, perms)
+	}
 }
 
 func loadRelationships() error {
@@ -147,6 +280,27 @@ func loadRelationships() error {
 
 	relationships = config.Relationships
 	return nil
+}
+
+// Zedスキーマ情報を返すハンドラ
+func getSchemaHandler(w http.ResponseWriter, r *http.Request) {
+	schemaInfo := make(map[string]interface{})
+	
+	for defName, def := range zedSchema.Definitions {
+		schemaInfo[defName] = map[string]interface{}{
+			"relations":   def.Relations,
+			"permissions": def.Permissions,
+		}
+	}
+	
+	response := map[string]interface{}{
+		"schema":           schemaInfo,
+		"permission_map":   permissionMap,
+		"total_definitions": len(zedSchema.Definitions),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func authorizeHandler(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +336,7 @@ func checkPermission(subject, resource, permission string) bool {
 		relSubject := strings.TrimPrefix(rel.Subject, "user:")
 		
 		if relSubject == subject && rel.Resource == resource {
-			// relationに基づいて権限チェック
+			// relationに基づいて権限チェック（Zedスキーマから構築された権限マップを使用）
 			if permissions, exists := permissionMap[rel.Relation]; exists {
 				for _, perm := range permissions {
 					if perm == permission {

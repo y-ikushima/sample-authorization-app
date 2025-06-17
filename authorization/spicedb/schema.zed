@@ -1,95 +1,148 @@
-/**
- * 階層型認可システムのスキーマ定義
- * README.mdの権限マトリックスに基づく認可設定：
- * 
- * システム権限マトリックス:
- * Admin        → 読取✓ 更新✓ 削除✓ メンバー管理✓
- * オーナー     → 読取✓ 更新✓ 削除✓ メンバー管理✓
- * マネージャー → 読取✓ 更新✓ 削除✓ メンバー管理✗
- * スタッフ     → 読取✓ 更新✗ 削除✗ メンバー管理✗
- * 
- * AWS権限マトリックス（システム権限とは独立）:
- * Admin        → 読取✓ 更新✓ 削除✓ 管理✓
- * オーナー     → 読取✓ 更新✓ 削除✓ 管理✓
- * マネージャー → 読取✓ 更新✗ 削除✗ 管理✗
- * スタッフ     → 読取✓ 更新✗ 削除✗ 管理✗
- * 
- * 権限の独立性：
- * - ユーザは複数のシステムに所属可能
- * - AWS権限はシステム権限とは完全に独立
- * - 例：sabuроはsystem1のマネージャーだが、aws1ではマネージャー権限（読取のみ）
- */
+// ==============================================================================
+// SpiceDB Authorization Schema
+// 統一認可システムのスキーマ定義
+// ==============================================================================
+//
+// このスキーマは以下の認可システムで統一された認可モデルを提供します:
+// - Casbin
+// - OPA (Open Policy Agent)  
+// - SpiceDB
+//
+// ==============================================================================
+// User Permission Structure (ユーザー権限構造)
+// ==============================================================================
+//
+// Global Permissions:
+// - taro: グローバルadmin
+//
+// System Permissions:
+// - jiro: system1, system2のowner
+// - saburo: system1, system3のmanager  
+// - hanako: system2, system3のstaff
+// - alice: system4のstaff
+//
+// AWS Account Permissions:
+// - jiro: aws1のowner
+// - saburo: aws1のmanager
+// - hanako: aws1のstaff
+// - alice: aws2のowner
+//
+// ==============================================================================
+// Permission Matrix (権限マトリックス)
+// ==============================================================================
+//
+// Role         | Read | Write | Delete | Admin
+// -------------|------|-------|--------|-------
+// Admin/Owner  |  ✓   |   ✓   |   ✓    |   ✓
+// Manager      |  ✓   |   ✓   |   ✓    |   ✗
+// Staff        |  ✓   |   ✗   |   ✗    |   ✗
+//
+// ==============================================================================
 
-// ユーザー定義
+// ------------------------------------------------------------------------------
+// Core Definitions
+// ------------------------------------------------------------------------------
+
+/** 
+ * User Definition
+ * 基本的なユーザーエンティティ
+ */
 definition user {}
 
-// システムリソース定義
+// ------------------------------------------------------------------------------
+// System Resources
+// ------------------------------------------------------------------------------
+
+/**
+ * System Resource Definition
+ * システムリソース定義（複数システムに所属可能）
+ */
 definition system {
-    // システムに対する権限（ユーザは複数のシステムに所属可能）
+    // Role Relations
     relation owner: user
-    relation manager: user
+    relation manager: user  
     relation staff: user
     
-    // システム権限マトリックスに基づく権限定義
-    permission read: staff + manager + owner
-    permission write: manager + owner  // スタッフは更新不可
-    permission delete: manager + owner  // スタッフは削除不可
-    permission manage_members: owner   // メンバー管理はオーナーのみ（マネージャー不可）
-    permission admin: owner
+    // Permission Definitions
+    permission read = owner + manager + staff
+    permission write = owner + manager
+    permission delete = owner + manager
+    permission admin = owner
 }
 
-// AWSアカウントリソース定義（システム権限とは独立）
+// ------------------------------------------------------------------------------
+// AWS Resources
+// ------------------------------------------------------------------------------
+
+/**
+ * AWS Account Resource Definition  
+ * AWSアカウントリソース定義（システム権限とは独立）
+ */
 definition aws {
-    // AWSに対する権限（システム権限とは完全に独立して設定）
+    // Role Relations
     relation owner: user
     relation manager: user
     relation staff: user
     
-    // システムとの関係（所属関係のみ、権限には影響しない）
-    relation system: system
-    
-    // AWS権限マトリックスに基づく権限定義
-    // マネージャーとスタッフは読取のみ（同じ権限）
-    permission read: staff + manager + owner
-    permission write: owner  // オーナーのみ更新可能
-    permission delete: owner  // オーナーのみ削除可能
-    permission admin: owner   // オーナーのみ管理可能
+    // Permission Definitions
+    permission read = owner + manager + staff
+    permission write = owner
+    permission delete = owner
+    permission admin = owner
 }
 
-// ユーザー管理リソース定義
+// ------------------------------------------------------------------------------
+// User Management Resources
+// ------------------------------------------------------------------------------
+
+/**
+ * User Management Resource Definition
+ * ユーザー管理リソース定義
+ */
 definition user_management {
-    // ユーザー管理に対する権限
-    relation admin_user: user
-    relation manager: user
-    relation staff: user
+    // Role Relations
+    relation admin: user
+    relation viewer: user
     
-    // 権限定義（ユーザー操作はadminのみ、その他は閲覧のみ）
-    permission read: staff + manager + admin_user
-    permission write: admin_user
-    permission delete: admin_user
-    permission admin: admin_user
+    // Permission Definitions
+    permission read = admin + viewer
+    permission write = admin
+    permission delete = admin
+    permission administrate = admin
 }
 
-// APIエンドポイント定義
+// ------------------------------------------------------------------------------
+// API Resources
+// ------------------------------------------------------------------------------
+
+/**
+ * API Access Resource Definition
+ * APIアクセスリソース定義
+ */
 definition api {
-    // API に対する権限
-    relation admin_user: user
-    relation owner: user
-    relation manager: user
-    relation staff: user
+    // Role Relations
+    relation user: user
     
-    // 権限の継承関係
-    permission read: staff + manager + owner + admin_user
-    permission write: manager + owner + admin_user
-    permission delete: owner + admin_user
-    permission admin: admin_user
+    // Permission Definitions
+    permission access = user
 }
 
-// グローバル権限定義
+// ------------------------------------------------------------------------------
+// Global Resources
+// ------------------------------------------------------------------------------
+
+/**
+ * Global Permission Definition
+ * グローバル権限定義
+ */
 definition global {
-    // グローバル管理者（Admin）
+    // Global Administrator Role
     relation admin: user
     
-    // 全ての権限を持つ（フルアクセス）
-    permission full_access: admin
-} 
+    // Global Permissions
+    permission full_access = admin
+}
+
+// ==============================================================================
+// End of Schema
+// ============================================================================== 
