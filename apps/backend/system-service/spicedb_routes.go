@@ -28,7 +28,12 @@ func setupSpiceDBRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		// グローバル管理者権限をチェック
 		if globalAdmin, err := checkGlobalAdminPermission(subject); err == nil && globalAdmin {
 			// グローバル管理者は全システムを見ることができる
-			c.JSON(http.StatusOK, allSystems)
+			// 空の場合は空配列を返す
+			if allSystems == nil {
+				c.JSON(http.StatusOK, []sqlc.System{})
+			} else {
+				c.JSON(http.StatusOK, allSystems)
+			}
 			return
 		}
 
@@ -39,6 +44,11 @@ func setupSpiceDBRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 			if err == nil && allowed {
 				accessibleSystems = append(accessibleSystems, system)
 			}
+		}
+
+		// 空のスライスがnullになるのを防ぐため、明示的に空配列を初期化
+		if accessibleSystems == nil {
+			accessibleSystems = []sqlc.System{}
 		}
 
 		c.JSON(http.StatusOK, accessibleSystems)

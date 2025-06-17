@@ -68,6 +68,7 @@ definition system {
     permission write = owner + manager
     permission delete = owner + manager
     permission admin = owner
+    permission manage_members = owner + manager
 }
 
 // ------------------------------------------------------------------------------
@@ -89,6 +90,7 @@ definition aws {
     permission write = owner
     permission delete = owner
     permission admin = owner
+    permission manage_members = owner + manager
 }
 
 // ------------------------------------------------------------------------------

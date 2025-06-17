@@ -1,77 +1,197 @@
-import { NextApiRequest, NextApiResponse } from "next";
+import type { NextApiRequest, NextApiResponse } from "next";
 
 // 環境に応じてSpiceDBサーバーのURLを決定
 const getSpiceDBServiceUrl = () => {
-  // 環境変数で指定されている場合はそれを使用
   if (process.env.SPICEDB_SERVICE_URL) {
     return process.env.SPICEDB_SERVICE_URL;
   }
-
-  // Docker環境内かどうかを判定
-  // Docker環境では hostname が設定されるため、それで判断
-  if (process.env.HOSTNAME && process.env.HOSTNAME !== "localhost") {
-    // Docker環境内では内部サービス名を使用
-    return "http://spicedb-server:8082";
-  }
-
-  // ローカル開発環境ではlocalhostを使用
-  return "http://localhost:8082";
+  return "http://spicedb-server:8080";
 };
 
 const SPICEDB_SERVICE_URL = getSpiceDBServiceUrl();
+const SPICEDB_AUTH_KEY = process.env.SPICEDB_AUTH_KEY || "spicedb-secret-key";
+
+// 公式SpiceDB API用の構造体
+interface SpiceDBRelationshipFilter {
+  resourceType?: string;
+  optionalResourceId?: string;
+  optionalRelation?: string;
+  optionalSubjectFilter?: {
+    subjectType?: string;
+    optionalSubjectId?: string;
+  };
+}
+
+interface SpiceDBRelationshipsReadRequest {
+  relationshipFilter: SpiceDBRelationshipFilter;
+}
+
+interface SpiceDBRelationship {
+  resource: {
+    objectType: string;
+    objectId: string;
+  };
+  relation: string;
+  subject: {
+    object: {
+      objectType: string;
+      objectId: string;
+    };
+  };
+}
+
+interface SpiceDBRelationshipsResponse {
+  result?: {
+    relationship: SpiceDBRelationship;
+  };
+}
+
+// フロントエンドが期待する形式
+interface UserRelationship {
+  resource: string;
+  relation: string;
+}
+
+interface UserRolesResponse {
+  user: string;
+  relationships: UserRelationship[];
+}
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // GET と POST をサポート
-  if (!["GET", "POST"].includes(req.method || "")) {
+  if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
     console.log("Connecting to SpiceDB service at:", SPICEDB_SERVICE_URL);
-    console.log("Request method:", req.method);
-    console.log("Request query:", req.query);
-    console.log("Request body:", req.body);
 
-    let url = `${SPICEDB_SERVICE_URL}/user-roles`;
-    const requestInit: RequestInit = {
-      method: req.method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    };
+    const { user, resource } = req.query;
 
-    // GETの場合はクエリパラメータを付与、POSTの場合はボディを設定
-    if (req.method === "GET") {
-      const queryParams = new URLSearchParams(
-        req.query as Record<string, string>
-      );
-      url = `${SPICEDB_SERVICE_URL}/user-roles?${queryParams.toString()}`;
-    } else if (req.method === "POST") {
-      requestInit.body = JSON.stringify(req.body);
+    // ユーザーIDを正規化（user:プレフィックスを除去）
+    let userId = "";
+    if (user) {
+      userId = (user as string).replace(/^user:/, "");
     }
 
-    const response = await fetch(url, requestInit);
+    // フィルター条件を設定
+    let relationshipFilter: SpiceDBRelationshipFilter = {};
+
+    if (resource && userId) {
+      // 特定のリソースと特定のユーザーのロールを取得
+      const resourceParts = (resource as string).split(":");
+      if (resourceParts.length === 2) {
+        relationshipFilter = {
+          resourceType: resourceParts[0],
+          optionalResourceId: resourceParts[1],
+          optionalSubjectFilter: {
+            subjectType: "user",
+            optionalSubjectId: userId,
+          },
+        };
+      }
+    } else if (resource) {
+      // 特定のリソースの全ユーザーのロールを取得
+      const resourceParts = (resource as string).split(":");
+      if (resourceParts.length === 2) {
+        relationshipFilter = {
+          resourceType: resourceParts[0],
+          optionalResourceId: resourceParts[1],
+        };
+      }
+    } else if (userId) {
+      // 特定のユーザーの全システムのロールを取得
+      relationshipFilter = {
+        resourceType: "system",
+        optionalSubjectFilter: {
+          subjectType: "user",
+          optionalSubjectId: userId,
+        },
+      };
+    } else {
+      // 全てのシステムロールを取得
+      relationshipFilter = {
+        resourceType: "system",
+      };
+    }
+
+    const readRequest: SpiceDBRelationshipsReadRequest = {
+      relationshipFilter,
+    };
+
+    const response = await fetch(
+      `${SPICEDB_SERVICE_URL}/v1/relationships/read`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SPICEDB_AUTH_KEY}`,
+        },
+        body: JSON.stringify(readRequest),
+      }
+    );
 
     console.log("SpiceDB response status:", response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error("SpiceDB service error:", errorText);
-      throw new Error(
-        `SpiceDB service error: ${response.status} - ${errorText}`
-      );
+      return res.status(500).json({
+        error: `SpiceDB service error: ${response.status} - ${errorText}`,
+      });
     }
 
-    const data = await response.json();
-    console.log("SpiceDB response data:", data);
-    res.status(200).json(data);
+    // レスポンスをストリームとして読み取り（SpiceDBは行区切りのJSONを返す）
+    const responseText = await response.text();
+    const lines = responseText.trim().split("\n");
+
+    const relationships: UserRelationship[] = [];
+
+    for (const line of lines) {
+      if (line.trim()) {
+        try {
+          const relationshipResponse: SpiceDBRelationshipsResponse =
+            JSON.parse(line);
+
+          if (relationshipResponse.result) {
+            const rel = relationshipResponse.result.relationship;
+
+            // system リソースタイプのみを対象とする
+            if (
+              rel.resource.objectType === "system" &&
+              rel.subject.object.objectType === "user"
+            ) {
+              // 特定ユーザーのクエリの場合、そのユーザーのみフィルタリング
+              if (userId && rel.subject.object.objectId !== userId) {
+                continue;
+              }
+
+              relationships.push({
+                resource: `${rel.resource.objectType}:${rel.resource.objectId}`,
+                relation: rel.relation,
+              });
+            }
+          }
+        } catch (parseError) {
+          console.warn("Failed to parse relationship line:", line, parseError);
+        }
+      }
+    }
+
+    // フロントエンドが期待する形式でレスポンスを返す
+    const result: UserRolesResponse = {
+      user: (user as string) || "",
+      relationships: relationships,
+    };
+
+    console.log("SpiceDB response data:", result);
+    res.status(200).json(result);
   } catch (error) {
     console.error("SpiceDB API proxy error:", error);
-    res
-      .status(500)
-      .json({ error: "Internal server error", details: String(error) });
+    res.status(500).json({
+      error: "Failed to connect to SpiceDB service",
+    });
   }
 }

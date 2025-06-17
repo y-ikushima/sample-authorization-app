@@ -1,22 +1,24 @@
-FROM golang:1.23-alpine
+# 公式SpiceDBイメージを使用
+FROM authzed/spicedb:v1.44.4
 
-# 必要なパッケージをインストール
-RUN apk add --no-cache curl git
-
-# Airをダウンロードしてインストール
-RUN go install github.com/air-verse/air@v1.61.7
-
-# ワーキングディレクトリを設定
+# 作業ディレクトリを設定
 WORKDIR /app
 
-# go.mod と go.sum をコピーして依存関係をインストール
-COPY go.mod go.sum ./
-RUN go mod download
+# 設定ファイルをコピー
+COPY schema.zed ./schema.zed
+COPY relationships.yaml ./relationships.yaml
 
-# ソースコードと設定ファイルをコピー
-COPY . ./
+# SpiceDBサーバーの起動
+EXPOSE 8080 50051
 
-ENV GO_ENV development
-
-# ホットリロードで開発用サーバを起動
-CMD ["air", "-c", ".air.toml"] 
+# serveサブコマンドから開始（エントリーポイントはすでにspicedb）
+CMD [ \
+  "serve", \
+  "--grpc-preshared-key", "spicedb-secret-key", \
+  "--http-enabled", \
+  "--datastore-engine", "postgres", \
+  "--datastore-conn-uri", "postgres://spicedb:spicedb123@spicedb_postgres:5432/spicedb?sslmode=disable", \
+  "--grpc-addr", "0.0.0.0:50051", \
+  "--http-addr", "0.0.0.0:8080", \
+  "--log-level", "debug" \
+] 

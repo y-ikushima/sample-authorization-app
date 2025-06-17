@@ -1,24 +1,42 @@
-import { NextApiRequest, NextApiResponse } from "next";
+import type { NextApiRequest, NextApiResponse } from "next";
 
 // 環境に応じてSpiceDBサーバーのURLを決定
 const getSpiceDBServiceUrl = () => {
-  // 環境変数で指定されている場合はそれを使用
+  // 開発環境で具体的に設定されている場合
   if (process.env.SPICEDB_SERVICE_URL) {
     return process.env.SPICEDB_SERVICE_URL;
   }
 
-  // Docker環境内かどうかを判定
-  // Docker環境では hostname が設定されるため、それで判断
-  if (process.env.HOSTNAME && process.env.HOSTNAME !== "localhost") {
-    // Docker環境内では内部サービス名を使用
-    return "http://spicedb-server:8082";
+  // Docker Compose環境の場合
+  if (process.env.NODE_ENV === "production") {
+    return "http://spicedb-server:8080";
   }
 
-  // ローカル開発環境ではlocalhostを使用
-  return "http://localhost:8082";
+  // ローカル開発環境の場合
+  return "http://spicedb-server:8080";
 };
 
 const SPICEDB_SERVICE_URL = getSpiceDBServiceUrl();
+const SPICEDB_AUTH_KEY = process.env.SPICEDB_AUTH_KEY || "spicedb-secret-key";
+
+// 公式SpiceDB API用の構造体
+interface SpiceDBCheckRequest {
+  resource: {
+    objectType: string;
+    objectId: string;
+  };
+  permission: string;
+  subject: {
+    object: {
+      objectType: string;
+      objectId: string;
+    };
+  };
+}
+
+interface SpiceDBCheckResponse {
+  permissionship: string;
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -30,33 +48,68 @@ export default async function handler(
 
   try {
     console.log("Connecting to SpiceDB service at:", SPICEDB_SERVICE_URL);
-    console.log("Request body:", req.body);
 
-    const response = await fetch(`${SPICEDB_SERVICE_URL}/authorize`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const { subject, resource, permission } = req.body;
+
+    // resourceを分割してobjectTypeとobjectIdを取得
+    const parts = resource.split(":");
+    if (parts.length !== 2) {
+      return res.status(400).json({
+        error: `Invalid resource format: ${resource}`,
+      });
+    }
+
+    const [objectType, objectId] = parts;
+
+    // 公式SpiceDB APIリクエスト構造体を作成
+    const checkRequest: SpiceDBCheckRequest = {
+      resource: {
+        objectType,
+        objectId,
       },
-      body: JSON.stringify(req.body),
-    });
+      permission,
+      subject: {
+        object: {
+          objectType: "user",
+          objectId: subject,
+        },
+      },
+    };
+
+    const response = await fetch(
+      `${SPICEDB_SERVICE_URL}/v1/permissions/check`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SPICEDB_AUTH_KEY}`,
+        },
+        body: JSON.stringify(checkRequest),
+      }
+    );
 
     console.log("SpiceDB response status:", response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error("SpiceDB service error:", errorText);
-      throw new Error(
-        `SpiceDB service error: ${response.status} - ${errorText}`
-      );
+      return res.status(500).json({
+        error: `SpiceDB service error: ${response.status} - ${errorText}`,
+      });
     }
 
-    const data = await response.json();
-    console.log("SpiceDB response data:", data);
-    res.status(200).json(data);
+    const checkResponse: SpiceDBCheckResponse = await response.json();
+    console.log("SpiceDB response data:", checkResponse);
+
+    // PERMISSIONSHIP_HAS_PERMISSIONの場合は権限あり
+    const allowed =
+      checkResponse.permissionship === "PERMISSIONSHIP_HAS_PERMISSION";
+
+    res.status(200).json({ allowed });
   } catch (error) {
     console.error("SpiceDB API proxy error:", error);
-    res
-      .status(500)
-      .json({ error: "Internal server error", details: String(error) });
+    res.status(500).json({
+      error: "Failed to connect to SpiceDB service",
+    });
   }
 }

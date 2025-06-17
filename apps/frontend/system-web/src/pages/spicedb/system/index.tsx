@@ -35,7 +35,7 @@ const SpicedbSystemPage: NextPage = () => {
         }
 
         const data = await response.json();
-        setSystems(data);
+        setSystems(data || []);
         setError(null);
       } catch (err) {
         console.error("システム一覧の取得に失敗しました:", err);
@@ -71,13 +71,13 @@ const SpicedbSystemPage: NextPage = () => {
 
         {!loading && !error && (
           <div>
-            <h2>システム一覧 ({systems.length}件)</h2>
+            <h2>システム一覧 ({systems?.length || 0}件)</h2>
 
-            {systems.length === 0 ? (
+            {!systems || systems.length === 0 ? (
               <p>システムが見つかりませんでした。</p>
             ) : (
               <div style={{ marginTop: "20px" }}>
-                {systems.map((system) => (
+                {systems?.map((system) => (
                   <div
                     key={system.ID}
                     style={{

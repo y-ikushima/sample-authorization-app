@@ -75,6 +75,9 @@ services:
       - 3003:3003
     volumes:
       - ./apps/backend/aws-service:/app
+    environment:
+      - SPICEDB_SERVICE_URL=http://spicedb-server:8080
+      - SPICEDB_AUTH_KEY=spicedb-secret-key
     depends_on:
       aws_postgres:
         condition: service_healthy
@@ -92,6 +95,11 @@ services:
       - 3004:3003
     volumes:
       - ./apps/backend/system-service:/app
+    environment:
+      - SPICEDB_SERVICE_URL=http://spicedb-server:8080
+      - SPICEDB_AUTH_KEY=spicedb-secret-key
+      - CASBIN_SERVICE_URL=http://casbin-server:8080
+      - OPA_SERVICE_URL=http://opa-server:8081
     depends_on:
       system_postgres:
         condition: service_healthy
@@ -129,6 +137,8 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
+      - SPICEDB_SERVICE_URL=http://spicedb-server:8080
+      - SPICEDB_AUTH_KEY=spicedb-secret-key
     depends_on:
       - aws-service
 
@@ -148,6 +158,8 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
+      - SPICEDB_SERVICE_URL=http://spicedb-server:8080
+      - SPICEDB_AUTH_KEY=spicedb-secret-key
     depends_on:
       - system-service
 
@@ -197,7 +209,7 @@ services:
       - ./authorization/opa:/app
     restart: unless-stopped
 
-  # SpiceDB Authorization Server
+  # SpiceDB Authorization Server（公式イメージ使用）
   spicedb-server:
     networks:
       - authorization-network
@@ -208,9 +220,12 @@ services:
       context: ./authorization/spicedb
       dockerfile: Dockerfile.dev
     ports:
-      - 8082:8082
+      - 8082:8080 # HTTP API
+      - 50051:50051 # gRPC API
     environment:
-      - PORT=8082
+      - SPICEDB_GRPC_PRESHARED_KEY=spicedb-secret-key
+      - SPICEDB_DATASTORE_ENGINE=postgres
+      - SPICEDB_DATASTORE_CONN_URI=postgres://spicedb:spicedb123@spicedb_postgres:5432/spicedb?sslmode=disable
     depends_on:
       spicedb_postgres:
         condition: service_healthy

@@ -18,38 +18,69 @@ var spiceDBServiceURL = func() string {
 	return "http://spicedb-server:8082"
 }()
 
-// SpiceDB 認可用の構造体
-type SpiceDBAuthRequest struct {
-	Subject    string `json:"subject"`
-	Resource   string `json:"resource"`
+// SpiceDB認証キーを環境変数から取得
+var spiceDBAuthKey = func() string {
+	if key := os.Getenv("SPICEDB_AUTH_KEY"); key != "" {
+		return key
+	}
+	return "spicedb-secret-key"
+}()
+
+// 公式SpiceDB API用の構造体
+type SpiceDBCheckRequest struct {
+	Resource struct {
+		ObjectType string `json:"objectType"`
+		ObjectId   string `json:"objectId"`
+	} `json:"resource"`
 	Permission string `json:"permission"`
+	Subject    struct {
+		Object struct {
+			ObjectType string `json:"objectType"`
+			ObjectId   string `json:"objectId"`
+		} `json:"object"`
+	} `json:"subject"`
 }
 
-type SpiceDBAuthResponse struct {
-	Allowed bool   `json:"allowed"`
-	Reason  string `json:"reason,omitempty"`
+type SpiceDBCheckResponse struct {
+	Permissionship string `json:"permissionship"`
 }
 
 // SpiceDBサービスで認可チェックを行う関数
 func checkSpiceDBAuthorization(subject, resource, permission string) (bool, error) {
-	// subjectにuser:プレフィックスを追加（SpiceDBの要求に合わせる）
-	if subject != "anonymous" && !strings.HasPrefix(subject, "user:") {
-		subject = "user:" + subject
+	// resourceを分割してobjectTypeとobjectIdを取得
+	parts := strings.Split(resource, ":")
+	if len(parts) != 2 {
+		return false, fmt.Errorf("invalid resource format: %s", resource)
 	}
+	
+	objectType := parts[0]
+	objectId := parts[1]
 
-	authReq := SpiceDBAuthRequest{
-		Subject:    subject,
-		Resource:   resource,
-		Permission: permission,
-	}
+	// 公式SpiceDB APIリクエスト構造体を作成
+	checkReq := SpiceDBCheckRequest{}
+	checkReq.Resource.ObjectType = objectType
+	checkReq.Resource.ObjectId = objectId
+	checkReq.Permission = permission
+	checkReq.Subject.Object.ObjectType = "user"
+	checkReq.Subject.Object.ObjectId = subject
 
-	jsonData, err := json.Marshal(authReq)
+	jsonData, err := json.Marshal(checkReq)
 	if err != nil {
-		return false, fmt.Errorf("failed to marshal SpiceDB auth request: %w", err)
+		return false, fmt.Errorf("failed to marshal SpiceDB check request: %w", err)
 	}
 
-	// SpiceDBサービスに認可リクエストを送信
-	resp, err := http.Post(spiceDBServiceURL+"/authorize", "application/json", bytes.NewBuffer(jsonData))
+	// 公式SpiceDBサービスに認可リクエストを送信
+	req, err := http.NewRequest("POST", spiceDBServiceURL+"/v1/permissions/check", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return false, fmt.Errorf("failed to create SpiceDB request: %w", err)
+	}
+
+	// 認証ヘッダーを追加
+	req.Header.Set("Authorization", "Bearer "+spiceDBAuthKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return false, fmt.Errorf("failed to call SpiceDB service: %w", err)
 	}
@@ -59,30 +90,30 @@ func checkSpiceDBAuthorization(subject, resource, permission string) (bool, erro
 		return false, fmt.Errorf("SpiceDB service returned status: %d", resp.StatusCode)
 	}
 
-	// レスポンスを読み取り
-	body, err := io.ReadAll(resp.Body)
+	var bodyBytes []byte
+	bodyBytes, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return false, fmt.Errorf("failed to read SpiceDB response: %w", err)
 	}
 
-	// JSONをパース
-	var authResp SpiceDBAuthResponse
-	if err := json.Unmarshal(body, &authResp); err != nil {
+	var checkResp SpiceDBCheckResponse
+	if err := json.Unmarshal(bodyBytes, &checkResp); err != nil {
 		return false, fmt.Errorf("failed to unmarshal SpiceDB response: %w", err)
 	}
 
-	return authResp.Allowed, nil
+	// PERMISSIONSHIP_HAS_PERMISSIONの場合は権限あり
+	return checkResp.Permissionship == "PERMISSIONSHIP_HAS_PERMISSION", nil
 }
 
-// グローバル管理者権限をチェックする関数
+// グローバル管理者権限チェック
 func checkGlobalAdminPermission(subject string) (bool, error) {
-	return checkSpiceDBAuthorization(subject, "global:main", "admin")
+	return checkSpiceDBAuthorization(subject, "global:main", "full_access")
 }
 
 // SpiceDB認可チェック（グローバル管理者権限も含む）
 func checkSpiceDBAuthorizationWithGlobal(subject, resource, permission string) (bool, error) {
 	// まずグローバル管理者権限をチェック
-	if globalAdmin, err := checkGlobalAdminPermission(subject); err == nil && globalAdmin {
+	if hasGlobalPermission, err := checkGlobalAdminPermission(subject); err == nil && hasGlobalPermission {
 		return true, nil
 	}
 
