@@ -113,16 +113,23 @@ export const checkAWSMemberManagePermission = async (
  * グローバル管理者権限をチェックする
  */
 export const checkGlobalAdminPermission = async (): Promise<boolean> => {
-  return await checkPermission("global:main", "admin");
+  return await checkPermission("global:main", "full_access");
 };
 
 /**
- * システムアクセス権限をチェックする
+ * システムアクセス権限をチェックする（グローバル管理者権限も含む）
  */
 export const checkSystemAccess = async (
   systemId: string,
   permission: string = "read"
 ): Promise<boolean> => {
+  // まずグローバル管理者権限をチェック
+  const isGlobalAdmin = await checkGlobalAdminPermission();
+  if (isGlobalAdmin) {
+    return true;
+  }
+
+  // 通常のシステム権限をチェック
   return await checkPermission(`system:${systemId}`, permission);
 };
 

@@ -59,7 +59,7 @@ func setupRouter(queries *sqlc.Queries) *gin.Engine {
 		"http://localhost:3002",
 	}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
-	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "X-User-ID"}
 	config.AllowCredentials = true
 	r.Use(cors.New(config))
 

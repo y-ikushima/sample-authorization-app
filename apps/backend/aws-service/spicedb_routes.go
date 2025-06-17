@@ -48,7 +48,7 @@ func setupSpiceDBRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		awsAccountID := c.Param("id")
 
-		allowed, err := checkSpiceDBAuthorization(subject, "aws:"+awsAccountID, "read")
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "aws:"+awsAccountID, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -75,7 +75,7 @@ func setupSpiceDBRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		awsAccountID := c.Param("id")
 
-		allowed, err := checkSpiceDBAuthorization(subject, "aws:"+awsAccountID, "write")
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "aws:"+awsAccountID, "write")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -121,7 +121,7 @@ func setupSpiceDBRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		systemID := c.Param("systemId")
 
-		allowed, err := checkSpiceDBAuthorization(subject, "system:"+systemID, "read")
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "system:"+systemID, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -148,7 +148,7 @@ func setupSpiceDBRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		awsAccountID := c.Param("id")
 
-		allowed, err := checkSpiceDBAuthorization(subject, "aws:"+awsAccountID, "read")
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "aws:"+awsAccountID, "read")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -218,7 +218,7 @@ func setupSpiceDBRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		awsAccountID := c.Param("id")
 
-		allowed, err := checkSpiceDBAuthorization(subject, "aws:"+awsAccountID, "delete")
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "aws:"+awsAccountID, "delete")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return
@@ -240,7 +240,7 @@ func setupSpiceDBRoutes(api *gin.RouterGroup, queries *sqlc.Queries) {
 		}
 		awsAccountID := c.Param("id")
 
-		allowed, err := checkSpiceDBAuthorization(subject, "aws:"+awsAccountID, "manage_members")
+		allowed, err := checkSpiceDBAuthorizationWithGlobal(subject, "aws:"+awsAccountID, "manage_members")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("認可チェックエラー: %v", err)})
 			return

@@ -1,5 +1,6 @@
 import UserInfo from "@/components/UserInfo";
 import { useSystemAccess } from "@/hooks/useAccessControl";
+import { getCurrentUserId } from "@/lib/auth";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 
@@ -34,8 +35,14 @@ export default function SpiceDBSystemAwsAccounts() {
     const fetchAwsAccounts = async () => {
       try {
         setLoading(true);
+        const userId = getCurrentUserId();
         const response = await fetch(
-          `http://localhost:3003/api/spicedb/account/system/${systemId}`
+          `http://localhost:3003/api/spicedb/account/system/${systemId}`,
+          {
+            headers: {
+              "X-User-ID": userId,
+            },
+          }
         );
 
         if (!response.ok) {

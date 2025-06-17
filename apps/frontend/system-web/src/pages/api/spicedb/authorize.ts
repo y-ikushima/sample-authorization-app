@@ -1,20 +1,12 @@
-import type { NextApiRequest, NextApiResponse } from "next";
+import { NextApiRequest, NextApiResponse } from "next";
 
-// 環境に応じてSpiceDBサーバーのURLを決定
-const getSpiceDBServiceUrl = () => {
-  // 開発環境で具体的に設定されている場合
-  if (process.env.SPICEDB_SERVICE_URL) {
-    return process.env.SPICEDB_SERVICE_URL;
-  }
-
-  // Docker Compose環境の場合
-  if (process.env.NODE_ENV === "production") {
-    return "http://spicedb-server:8080";
-  }
-
-  // ローカル開発環境の場合
-  return "http://spicedb-server:8080";
-};
+function getSpiceDBServiceUrl(): string {
+  const url =
+    process.env.SPICEDB_SERVICE_URL ||
+    process.env.NEXT_PUBLIC_SPICEDB_SERVICE_URL ||
+    "http://localhost:8080";
+  return url;
+}
 
 const SPICEDB_SERVICE_URL = getSpiceDBServiceUrl();
 const SPICEDB_AUTH_KEY = process.env.SPICEDB_AUTH_KEY || "spicedb-secret-key";
@@ -38,6 +30,94 @@ interface SpiceDBCheckResponse {
   permissionship: string;
 }
 
+// グローバル管理者権限をチェックする関数
+async function checkGlobalAdminPermission(subject: string): Promise<boolean> {
+  const checkRequest: SpiceDBCheckRequest = {
+    resource: {
+      objectType: "global",
+      objectId: "main",
+    },
+    permission: "full_access",
+    subject: {
+      object: {
+        objectType: "user",
+        objectId: subject,
+      },
+    },
+  };
+
+  try {
+    const response = await fetch(
+      `${SPICEDB_SERVICE_URL}/v1/permissions/check`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SPICEDB_AUTH_KEY}`,
+        },
+        body: JSON.stringify(checkRequest),
+      }
+    );
+
+    if (!response.ok) {
+      console.error("Global admin check failed:", response.status);
+      return false;
+    }
+
+    const checkResponse: SpiceDBCheckResponse = await response.json();
+    return checkResponse.permissionship === "PERMISSIONSHIP_HAS_PERMISSION";
+  } catch (error) {
+    console.error("Global admin check error:", error);
+    return false;
+  }
+}
+
+// 通常のSpiceDB権限チェック
+async function checkSpiceDBPermission(
+  subject: string,
+  resource: string,
+  permission: string
+): Promise<boolean> {
+  const parts = resource.split(":");
+  if (parts.length !== 2) {
+    throw new Error(`Invalid resource format: ${resource}`);
+  }
+
+  const [objectType, objectId] = parts;
+
+  const checkRequest: SpiceDBCheckRequest = {
+    resource: {
+      objectType,
+      objectId,
+    },
+    permission,
+    subject: {
+      object: {
+        objectType: "user",
+        objectId: subject,
+      },
+    },
+  };
+
+  const response = await fetch(`${SPICEDB_SERVICE_URL}/v1/permissions/check`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SPICEDB_AUTH_KEY}`,
+    },
+    body: JSON.stringify(checkRequest),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("SpiceDB service error:", errorText);
+    throw new Error(`SpiceDB service error: ${response.status} - ${errorText}`);
+  }
+
+  const checkResponse: SpiceDBCheckResponse = await response.json();
+  return checkResponse.permissionship === "PERMISSIONSHIP_HAS_PERMISSION";
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -51,59 +131,23 @@ export default async function handler(
 
     const { subject, resource, permission } = req.body;
 
-    // resourceを分割してobjectTypeとobjectIdを取得
-    const parts = resource.split(":");
-    if (parts.length !== 2) {
-      return res.status(400).json({
-        error: `Invalid resource format: ${resource}`,
-      });
-    }
-
-    const [objectType, objectId] = parts;
-
-    // 公式SpiceDB APIリクエスト構造体を作成
-    const checkRequest: SpiceDBCheckRequest = {
-      resource: {
-        objectType,
-        objectId,
-      },
-      permission,
-      subject: {
-        object: {
-          objectType: "user",
-          objectId: subject,
-        },
-      },
-    };
-
-    const response = await fetch(
-      `${SPICEDB_SERVICE_URL}/v1/permissions/check`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SPICEDB_AUTH_KEY}`,
-        },
-        body: JSON.stringify(checkRequest),
-      }
+    console.log(
+      `SpiceDB認可チェック開始: subject=${subject}, resource=${resource}, permission=${permission}`
     );
 
-    console.log("SpiceDB response status:", response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("SpiceDB service error:", errorText);
-      return res.status(500).json({
-        error: `SpiceDB service error: ${response.status} - ${errorText}`,
-      });
+    // まずグローバル管理者権限をチェック
+    const isGlobalAdmin = await checkGlobalAdminPermission(subject);
+    if (isGlobalAdmin) {
+      console.log(`グローバル管理者権限により許可: subject=${subject}`);
+      return res.status(200).json({ allowed: true });
     }
 
-    const checkResponse: SpiceDBCheckResponse = await response.json();
-    console.log("SpiceDB response data:", checkResponse);
+    // 通常の権限チェック
+    const allowed = await checkSpiceDBPermission(subject, resource, permission);
 
-    // PERMISSIONSHIP_HAS_PERMISSIONの場合は権限あり
-    const allowed =
-      checkResponse.permissionship === "PERMISSIONSHIP_HAS_PERMISSION";
+    console.log(
+      `SpiceDB認可チェック結果: subject=${subject}, resource=${resource}, permission=${permission}, allowed=${allowed}`
+    );
 
     res.status(200).json({ allowed });
   } catch (error) {

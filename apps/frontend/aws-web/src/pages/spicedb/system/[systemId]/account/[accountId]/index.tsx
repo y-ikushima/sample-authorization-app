@@ -1,4 +1,5 @@
 import UserInfo from "@/components/UserInfo";
+import { getCurrentUserId } from "@/lib/auth";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import React, { useEffect, useState } from "react";
@@ -24,10 +25,16 @@ const AwsAccountDetailPage: React.FC = () => {
     const fetchAwsAccountDetails = async () => {
       try {
         setLoading(true);
+        const userId = getCurrentUserId();
 
         // AWSアカウント詳細を取得
         const accountResponse = await fetch(
-          `http://localhost:3003/api/spicedb/account/${accountId}`
+          `http://localhost:3003/api/spicedb/account/${accountId}`,
+          {
+            headers: {
+              "X-User-ID": userId,
+            },
+          }
         );
         if (!accountResponse.ok) {
           throw new Error("AWSアカウント情報の取得に失敗しました");

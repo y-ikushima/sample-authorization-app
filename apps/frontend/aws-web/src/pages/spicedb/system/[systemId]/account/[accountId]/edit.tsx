@@ -1,4 +1,5 @@
 import UserInfo from "@/components/UserInfo";
+import { getCurrentUserId } from "@/lib/auth";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import React, { useEffect, useState } from "react";
@@ -29,11 +30,17 @@ const AwsAccountEditPage: React.FC = () => {
     const fetchAwsAccountDetails = async () => {
       try {
         setLoading(true);
+        const userId = getCurrentUserId();
         setError(null);
 
         // AWSアカウント詳細を取得
         const accountResponse = await fetch(
-          `http://localhost:3003/api/spicedb/account/${accountId}`
+          `http://localhost:3003/api/spicedb/account/${accountId}`,
+          {
+            headers: {
+              "X-User-ID": userId,
+            },
+          }
         );
         if (!accountResponse.ok) {
           throw new Error("AWSアカウント情報の取得に失敗しました");
@@ -67,11 +74,11 @@ const AwsAccountEditPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!accountId) return;
+    if (!accountId || !formData.name.trim()) return;
 
     try {
       setSaving(true);
-      setError(null);
+      const userId = getCurrentUserId();
 
       const response = await fetch(
         `http://localhost:3003/api/spicedb/account/${accountId}`,
@@ -79,11 +86,9 @@ const AwsAccountEditPage: React.FC = () => {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
+            "X-User-ID": userId,
           },
-          body: JSON.stringify({
-            Name: formData.name,
-            Note: formData.note,
-          }),
+          body: JSON.stringify(formData),
         }
       );
 
